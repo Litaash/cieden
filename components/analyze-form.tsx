@@ -95,7 +95,7 @@ export function AnalyzeForm({ onSubmit }: Props) {
       </div>
 
       <p className="mt-8 text-center text-xs text-muted-foreground">
-        Analysis takes 30–90 seconds. Screenshots auto-expire after 24 hours.
+        Analysis takes a minute or two. Screenshots auto-expire after 24 hours.
       </p>
     </div>
   );

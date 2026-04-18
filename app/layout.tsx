@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: 'Landing Crit — Competitive SaaS Landing Page Analyzer',
   description:
-    'Paste your URL and get a prioritized, evidence-backed critique of your SaaS landing page — benchmarked against 3 direct competitors in under 90 seconds.',
+    'Paste your URL and get a prioritized, evidence-backed critique of your SaaS landing page — benchmarked against 3 direct competitors.',
   robots: { index: false, follow: false },
 };
 

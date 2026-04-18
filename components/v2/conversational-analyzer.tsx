@@ -164,7 +164,7 @@ export function ConversationalAnalyzer() {
         body: {
           kind: 'text',
           content:
-            "Got it. Starting now — I'll stream updates as each step lands. Expected: 30–90 seconds.",
+            "Got it. Starting now — I'll stream updates as each step lands.",
         },
       });
 
@@ -512,7 +512,7 @@ export function ConversationalAnalyzer() {
         )}
         {phase === 'idle' && (
           <p className="mt-2 text-[11px] text-muted-foreground">
-            Analysis takes 30–90 seconds. Screenshots auto-expire after 24
+            Analysis takes a minute or two. Screenshots auto-expire after 24
             hours.
           </p>
         )}

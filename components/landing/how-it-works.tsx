@@ -28,7 +28,7 @@ const STEPS: Step[] = [
   {
     icon: FileCheck,
     title: "Get a prioritized crit",
-    body: "Evidence-backed insights, ranked by impact — in under 90 seconds.",
+    body: "Evidence-backed insights, ranked by impact.",
   },
 ];
 
