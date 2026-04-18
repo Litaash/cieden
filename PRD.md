@@ -1,6 +1,6 @@
 # Competitive Landing Page Analyzer — Product Requirements Document
 
-> **Status:** v1.0 (MVP scope)
+> **Status:** v1.1 (MVP shipped; pipeline hardened)
 > **Author:** Oleksandr Litash
 > **Last updated:** 2026-04-18
 
@@ -132,7 +132,7 @@ When a SaaS team hires this tool, they are trying to:
 | AI — text reasoning | **Gemini 2.5 Flash**                   | Cheap, fast, generous free tier; handles competitor discovery, copy analysis, summarization.                               |
 | AI — vision         | **Gemini 2.5 Pro**                     | Strong multimodal reasoning; one API surface across text + vision.                                                         |
 | AI — search         | **Gemini Grounding**                   | Native Google-search grounding with source URLs — avoids paying for SerpAPI.                                               |
-| AI orchestration    | **Vercel AI SDK v5**                   | Provider-agnostic `generateObject` with Zod schemas; streaming primitives for SSE.                                         |
+| AI orchestration    | **Vercel AI SDK v6**                   | Provider-agnostic `generateObject` with Zod schemas; streaming primitives for SSE. `maxRetries` is first-class on every call. |
 | Web scraping        | **Firecrawl**                          | One API call returns screenshot + markdown + metadata. 500/mo free.                                                        |
 | Storage             | **Vercel Blob**                        | Short-TTL signed URLs for screenshots. Satisfies "don't leave scraped pages public indefinitely."                          |
 | Hosting             | **Vercel**                             | Native Next.js, Cron for TTL cleanup, Functions auto-scale.                                                                |
@@ -147,8 +147,8 @@ Each step is a specialized call with a narrow prompt and structured output (Zod 
 - Lets us parallelize (all 4 sites analyzed concurrently).
 - Makes failures isolable and retryable.
 
-**2. Section-based vision analysis.**
-Full-page screenshots of modern SaaS landing pages are often 5000-10000px tall. Feeding the whole image to Gemini risks detail loss. We crop into semantic sections (hero, features, social proof, pricing, footer) based on Firecrawl's structured output, and analyze each separately. Synthesis is text-only.
+**2. Full-page vision, structured prompt.**
+Each site's screenshot is sent to Gemini as a single multimodal call with a strict prompt that demands verbatim CTA labels, named colors, and "say so if not visible" — plus a Zod schema that enforces one evidence-bearing field per dimension (hero / CTA / hierarchy / social proof / overall). Full-page keeps global layout context that matters to a crit (vertical rhythm, fold handling). Section-based cropping (hero / pricing / footer) is on the roadmap as a "SHOULD-HAVE" once we hit token-cost pain on pages >10k px tall; today the constraint is Firecrawl's screenshot fidelity, not Gemini's context window.
 
 **3. Evidence-first output contract.**
 Every insight the system emits is forced through this schema:
@@ -169,17 +169,27 @@ Every insight the system emits is forced through this schema:
 If the LLM can't fill `evidence`, the insight is dropped. This is the core anti-generic-advice guardrail.
 
 **4. Streaming progress over polling.**
-A full analysis takes 30-90 seconds. We use Server-Sent Events (native in Next.js 16 Route Handlers) to push step-by-step updates. UX feels instant; no "is it frozen?" moment.
+A full analysis takes roughly a minute or two end-to-end. We use Server-Sent Events (native in Next.js 16 Route Handlers) to push step-by-step updates (`status`, `competitors`, `siteReady`, `siteAnalyzed`, `complete`). The progress bar weights each step by realistic share of wall time and sub-animates inside `capture` / `analyze` based on per-site state counts, so the UI never looks frozen during the long analyst phase.
 
 **5. Stateless + ephemeral storage.**
 
 - No database in MVP.
-- Screenshots live in Vercel Blob with 24h TTL (Vercel Cron).
-- Report JSON cached alongside; accessible via `/report/[id]` until expiry.
+- Screenshots and report JSON live under `reports/<id>/` in Vercel Blob. The 24h TTL is advertised in the UI and enforced by scheduled Blob cleanup (Cron or manual for MVP); consumer code treats a missing blob as "expired" via `fetchReport()` returning `null`.
+- Report JSON is accessible via `/report/[id]` until expiry.
 - Legal compliance with brief: no indefinite public scraping of third-party sites.
+- Blob is optional: without `BLOB_READ_WRITE_TOKEN` the app still runs, just without shareable URLs (screenshots inline as data URLs, reports not persisted).
 
 **6. API keys server-only.**
 All AI and Firecrawl calls happen in Route Handlers / Server Actions. Nothing touches the client. `.env.example` documents required keys.
+
+**7. Streaming capture→analyze pipeline (perf).**
+The naive orchestration is strictly sequential: _find competitors → capture all 4 sites → analyze all → synthesize_. That idles Firecrawl during the 8-15s competitor search and idles Gemini during the slowest capture. Two moves cut ~25-50s off wall time:
+
+- **Pre-capture the user's URL.** The user already gave us their URL — kick off `captureLanding(userUrl)` in parallel with `findCompetitors`. By the time competitors are picked, the user's screenshot is often already in hand.
+- **Stream per-site into analysis.** As soon as any site's capture resolves (user or competitor), it immediately enters the visual + copy analyst pair — we don't wait for the slowest capture. A semaphore caps analyst concurrency at 4 to stay inside Gemini Tier 1 quotas while still saturating them. The "analyze" SSE step is announced the moment the first analyst starts, so the progress bar reflects real work rather than phase boundaries.
+
+**8. URL mirrors the current view.**
+When a run completes and Blob has persisted the report, the client `pushState`s to `/report/[id]` so that browser back/forward, reloads, and copy-pasted links all resolve to the canonical server-rendered report page. The inline view stays mounted (no re-fetch flash), and back-navigation to `/` resets the form via a `popstate` handler. Both Classic and Chat UIs share this behavior.
 
 ### Handling AI limitations
 
@@ -187,7 +197,7 @@ All AI and Firecrawl calls happen in Route Handlers / Server Actions. Nothing to
 | --------------------- | ----------------------------------------------------------------------------- |
 | Context window        | Section-based analysis; summarize per-section before cross-site synthesis.    |
 | Hallucination         | Structured output with Zod; evidence fields required; confidence scores.      |
-| Rate limits           | Parallel-then-batch with retry on 429; Gemini Flash for cheap passes.         |
+| Rate limits           | Semaphore-bounded analyst concurrency (`ANALYSIS_CONCURRENCY=4` on Tier 1, 2 on free); AI SDK `maxRetries: 4` with exponential backoff on 429. |
 | Cost                  | Cache competitor lookups by domain (in-memory for MVP). Free-tier friendly.   |
 | Long-running requests | SSE streaming + Vercel Functions max duration (300s is enough for 4 sites).   |
 | Non-determinism       | `temperature: 0.2` for analysis calls; higher only for copy-suggestion tasks. |
