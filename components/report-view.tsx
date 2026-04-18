@@ -1,18 +1,18 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { toast } from 'sonner';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
+import { useState } from "react";
+import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 import type {
   FailedCapture,
   Insight,
   InsightCategory,
   Report,
   SiteAnalysis,
-} from '@/lib/schemas';
-import { cn } from '@/lib/utils';
+} from "@/lib/schemas";
+import { cn } from "@/lib/utils";
 
 interface Props {
   report: Report;
@@ -21,22 +21,22 @@ interface Props {
 }
 
 const CATEGORY_LABELS: Record<InsightCategory, string> = {
-  hero: 'Hero',
-  cta: 'CTA',
-  social_proof: 'Social proof',
-  hierarchy: 'Hierarchy',
-  copy: 'Copy',
+  hero: "Hero",
+  cta: "CTA",
+  social_proof: "Social proof",
+  hierarchy: "Hierarchy",
+  copy: "Copy",
 };
 
-const PRIORITY_STYLE: Record<Insight['priority'], string> = {
-  high: 'bg-red-500/10 text-red-600 border-red-500/20 dark:text-red-400',
-  med: 'bg-amber-500/10 text-amber-600 border-amber-500/20 dark:text-amber-400',
-  low: 'bg-blue-500/10 text-blue-600 border-blue-500/20 dark:text-blue-400',
+const PRIORITY_STYLE: Record<Insight["priority"], string> = {
+  high: "bg-red-500/10 text-red-600 border-red-500/20 dark:text-red-400",
+  med: "bg-amber-500/10 text-amber-600 border-amber-500/20 dark:text-amber-400",
+  low: "bg-blue-500/10 text-blue-600 border-blue-500/20 dark:text-blue-400",
 };
 
 export function ReportView({ report, persistedReportId, onReset }: Props) {
   const shareUrl = persistedReportId
-    ? `${typeof window !== 'undefined' ? window.location.origin : ''}/report/${persistedReportId}`
+    ? `${typeof window !== "undefined" ? window.location.origin : ""}/report/${persistedReportId}`
     : null;
 
   const userAnalysis = report.analyses.find((a) => a.url === report.userUrl);
@@ -56,10 +56,10 @@ export function ReportView({ report, persistedReportId, onReset }: Props) {
             {report.userName}
           </h1>
           <div className="text-sm text-muted-foreground">
-            Benchmarked against{' '}
+            Benchmarked against{" "}
             {report.competitors.map((c, i) => (
               <span key={c.url}>
-                {i > 0 && ', '}
+                {i > 0 && ", "}
                 <a
                   href={c.url}
                   target="_blank"
@@ -79,7 +79,7 @@ export function ReportView({ report, persistedReportId, onReset }: Props) {
               size="sm"
               onClick={() => {
                 navigator.clipboard.writeText(shareUrl);
-                toast.success('Share link copied');
+                toast.success("Share link copied");
               }}
             >
               Copy share link
@@ -103,10 +103,7 @@ export function ReportView({ report, persistedReportId, onReset }: Props) {
 
       <Separator />
 
-      <SitesGrid
-        user={userAnalysis}
-        competitors={competitorAnalyses}
-      />
+      <SitesGrid user={userAnalysis} competitors={competitorAnalyses} />
 
       {report.competitors.length > 0 && (
         <CompetitorSources
@@ -116,7 +113,7 @@ export function ReportView({ report, persistedReportId, onReset }: Props) {
       )}
 
       <footer className="pt-6 text-xs text-muted-foreground">
-        Report id: <span className="font-mono">{report.id}</span> · Expires{' '}
+        Report id: <span className="font-mono">{report.id}</span> · Expires{" "}
         {new Date(report.expiresAt).toLocaleDateString()}
       </footer>
     </div>
@@ -147,11 +144,11 @@ function TopRecommendations({ items }: { items: string[] }) {
 }
 
 function InsightList({ insights }: { insights: Insight[] }) {
-  const [filter, setFilter] = useState<InsightCategory | 'all'>('all');
+  const [filter, setFilter] = useState<InsightCategory | "all">("all");
   const [minConfidence, setMinConfidence] = useState(0);
 
   const filtered = insights.filter((i) => {
-    if (filter !== 'all' && i.category !== filter) return false;
+    if (filter !== "all" && i.category !== filter) return false;
     if (i.confidence < minConfidence) return false;
     return true;
   });
@@ -166,12 +163,12 @@ function InsightList({ insights }: { insights: Insight[] }) {
         </h2>
         <div className="flex items-center gap-1.5">
           <button
-            onClick={() => setFilter('all')}
+            onClick={() => setFilter("all")}
             className={cn(
-              'text-xs px-2.5 py-1 rounded-full border',
-              filter === 'all'
-                ? 'bg-foreground text-background border-foreground'
-                : 'bg-background hover:bg-muted',
+              "text-xs px-2.5 py-1 rounded-full border",
+              filter === "all"
+                ? "bg-foreground text-background border-foreground"
+                : "bg-background hover:bg-muted",
             )}
           >
             All
@@ -181,10 +178,10 @@ function InsightList({ insights }: { insights: Insight[] }) {
               key={c}
               onClick={() => setFilter(c)}
               className={cn(
-                'text-xs px-2.5 py-1 rounded-full border',
+                "text-xs px-2.5 py-1 rounded-full border",
                 filter === c
-                  ? 'bg-foreground text-background border-foreground'
-                  : 'bg-background hover:bg-muted',
+                  ? "bg-foreground text-background border-foreground"
+                  : "bg-background hover:bg-muted",
               )}
             >
               {CATEGORY_LABELS[c]}
@@ -229,9 +226,12 @@ function InsightCard({ insight }: { insight: Insight }) {
         <h3 className="text-base font-medium leading-snug">{insight.claim}</h3>
         <Badge
           variant="outline"
-          className={cn('shrink-0 capitalize', PRIORITY_STYLE[insight.priority])}
+          className={cn(
+            "shrink-0 capitalize",
+            PRIORITY_STYLE[insight.priority],
+          )}
         >
-          {insight.priority === 'med' ? 'medium' : insight.priority}
+          {insight.priority === "med" ? "medium" : insight.priority}
         </Badge>
       </div>
 
@@ -301,16 +301,16 @@ function ConfidenceBar({ value }: { value: number }) {
   const pct = Math.round(value * 100);
   const toneClass =
     value >= 0.75
-      ? 'bg-green-500'
+      ? "bg-green-500"
       : value >= 0.5
-        ? 'bg-amber-500'
-        : 'bg-muted-foreground/40';
+        ? "bg-amber-500"
+        : "bg-muted-foreground/40";
   return (
     <div className="flex items-center gap-1.5">
       <span className="uppercase tracking-wider">confidence</span>
       <div className="h-1 w-16 rounded-full bg-muted overflow-hidden">
         <div
-          className={cn('h-full rounded-full', toneClass)}
+          className={cn("h-full rounded-full", toneClass)}
           style={{ width: `${pct}%` }}
         />
       </div>
@@ -373,16 +373,16 @@ function SitePanel({
   role,
 }: {
   site: SiteAnalysis;
-  role: 'user' | 'competitor';
+  role: "user" | "competitor";
 }) {
   return (
     <div
       className={cn(
-        'overflow-hidden rounded-lg border bg-card',
-        role === 'user' && 'ring-1 ring-primary/30',
+        "overflow-hidden rounded-lg border bg-card",
+        role === "user" && "ring-1 ring-primary/30",
       )}
     >
-      <div className="aspect-[3/4] relative bg-muted overflow-hidden">
+      <div className="aspect-3/4 relative bg-muted overflow-hidden">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={site.screenshotUrl}
@@ -393,7 +393,7 @@ function SitePanel({
       <div className="p-4 space-y-2">
         <div className="flex items-center justify-between gap-2">
           <div className="font-medium text-sm truncate">{site.name}</div>
-          {role === 'user' && (
+          {role === "user" && (
             <Badge className="text-[10px] px-1.5 py-0">You</Badge>
           )}
         </div>
@@ -403,7 +403,7 @@ function SitePanel({
           rel="noreferrer"
           className="block text-[11px] text-muted-foreground hover:text-foreground truncate"
         >
-          {site.url.replace(/^https?:\/\//, '')}
+          {site.url.replace(/^https?:\/\//, "")}
         </a>
         <div className="pt-2 space-y-1.5 text-xs">
           {site.copy.headline && (
@@ -417,7 +417,7 @@ function SitePanel({
         </div>
         <div className="pt-1 flex flex-wrap gap-1">
           <Badge variant="secondary" className="text-[10px] font-normal">
-            CTA: {site.visual.cta.primaryText || '—'}
+            CTA: {site.visual.cta.primaryText || "—"}
           </Badge>
           <Badge variant="secondary" className="text-[10px] font-normal">
             density: {site.visual.visualHierarchy.density}
@@ -435,7 +435,7 @@ function CompetitorSources({
   competitors,
   failedCaptures,
 }: {
-  competitors: Report['competitors'];
+  competitors: Report["competitors"];
   failedCaptures: FailedCapture[];
 }) {
   const failedByUrl = new Map(failedCaptures.map((f) => [f.url, f]));
@@ -451,8 +451,10 @@ function CompetitorSources({
             <li
               key={c.url}
               className={cn(
-                'rounded-lg border p-4 text-sm',
-                failure ? 'border-destructive/30 bg-destructive/5' : 'bg-card/50',
+                "rounded-lg border p-4 text-sm",
+                failure
+                  ? "border-destructive/30 bg-destructive/5"
+                  : "bg-card/50",
               )}
             >
               <div className="flex items-baseline justify-between gap-3">
@@ -473,14 +475,16 @@ function CompetitorSources({
                   rel="noreferrer"
                   className="text-xs text-muted-foreground hover:text-foreground"
                 >
-                  {c.url.replace(/^https?:\/\//, '')}
+                  {c.url.replace(/^https?:\/\//, "")}
                 </a>
               </div>
-              <p className="mt-1 text-sm text-muted-foreground">{c.reasoning}</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {c.reasoning}
+              </p>
               {failure && (
                 <p className="mt-2 text-xs text-destructive/70">
-                  Not included in the comparison — we couldn&rsquo;t capture this
-                  site.{' '}
+                  Not included in the comparison — we couldn&rsquo;t capture
+                  this site.{" "}
                   <span className="text-muted-foreground">
                     {shortenReason(failure.reason)}
                   </span>
@@ -498,7 +502,7 @@ function CompetitorSources({
                     >
                       {(() => {
                         try {
-                          return new URL(s).hostname.replace(/^www\./, '');
+                          return new URL(s).hostname.replace(/^www\./, "");
                         } catch {
                           return s;
                         }
@@ -518,6 +522,6 @@ function CompetitorSources({
 function shortenReason(reason: string): string {
   const firstSentence = reason.split(/(?<=[.!?])\s/)[0] ?? reason;
   return firstSentence.length > 180
-    ? firstSentence.slice(0, 177) + '…'
+    ? firstSentence.slice(0, 177) + "…"
     : firstSentence;
 }

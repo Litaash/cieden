@@ -1,10 +1,10 @@
-import { Analyzer } from '@/components/analyzer';
+import { Analyzer } from "@/components/analyzer";
 
 export default function HomePage() {
   return (
     <main className="flex flex-1 flex-col">
       <section className="relative overflow-hidden">
-        <div className="absolute inset-x-0 top-0 -z-10 h-[520px] bg-gradient-to-b from-primary/[0.06] via-primary/[0.02] to-transparent" />
+        <div className="absolute inset-x-0 top-0 -z-10 h-[520px] bg-linear-to-b from-primary/6 via-primary/2 to-transparent" />
         <div className="mx-auto w-full max-w-5xl px-6 pt-16 pb-10 sm:pt-24 sm:pb-14">
           <div className="mx-auto max-w-3xl text-center">
             <div className="inline-flex items-center gap-2 rounded-full border bg-background/60 backdrop-blur px-3 py-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
@@ -50,9 +50,7 @@ export default function HomePage() {
           <span>
             Built for the Cieden take-home · Screenshots expire in 24 hours
           </span>
-          <span className="font-mono">
-            next.js 16 · gemini 2.5 · firecrawl
-          </span>
+          <span className="font-mono">next.js 16 · gemini 2.5 · firecrawl</span>
         </div>
       </footer>
     </main>

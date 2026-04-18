@@ -1,19 +1,19 @@
-'use client';
+"use client";
 
-import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import type {
   Competitor,
   FailureReasonCategory,
   SiteAnalysis,
-} from '@/lib/schemas';
-import { cn } from '@/lib/utils';
+} from "@/lib/schemas";
+import { cn } from "@/lib/utils";
 
 export interface SiteState {
   url: string;
   name: string;
-  role: 'user' | 'competitor';
-  status: 'pending' | 'captured' | 'analyzed' | 'failed';
+  role: "user" | "competitor";
+  status: "pending" | "captured" | "analyzed" | "failed";
   screenshotUrl?: string;
   analysis?: SiteAnalysis;
   failureLabel?: string;
@@ -22,21 +22,21 @@ export interface SiteState {
 }
 
 const STEP_ORDER = [
-  'starting',
-  'competitors',
-  'capture',
-  'analyze',
-  'synthesize',
-  'persist',
+  "starting",
+  "competitors",
+  "capture",
+  "analyze",
+  "synthesize",
+  "persist",
 ] as const;
 
 const STEP_LABELS: Record<(typeof STEP_ORDER)[number], string> = {
-  starting: 'Starting',
-  competitors: 'Finding competitors',
-  capture: 'Capturing screenshots',
-  analyze: 'Analyzing design & copy',
-  synthesize: 'Synthesizing insights',
-  persist: 'Saving report',
+  starting: "Starting",
+  competitors: "Finding competitors",
+  capture: "Capturing screenshots",
+  analyze: "Analyzing design & copy",
+  synthesize: "Synthesizing insights",
+  persist: "Saving report",
 };
 
 interface Props {
@@ -72,17 +72,17 @@ export function ProgressView({
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-50" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
             </span>
-            {statusMessage || 'Working…'}
+            {statusMessage || "Working…"}
           </div>
           <div className="flex flex-wrap gap-1.5 mt-1">
             {STEP_ORDER.map((s, i) => (
               <Badge
                 key={s}
-                variant={i === currentStepIndex ? 'default' : 'secondary'}
+                variant={i === currentStepIndex ? "default" : "secondary"}
                 className={cn(
-                  'text-[10px] font-normal uppercase tracking-wider px-2 py-0.5',
-                  i < currentStepIndex && 'opacity-50',
-                  i > currentStepIndex && 'opacity-30',
+                  "text-[10px] font-normal uppercase tracking-wider px-2 py-0.5",
+                  i < currentStepIndex && "opacity-50",
+                  i > currentStepIndex && "opacity-30",
                 )}
               >
                 {STEP_LABELS[s]}
@@ -116,7 +116,7 @@ export function ProgressView({
                     rel="noreferrer"
                     className="text-xs text-muted-foreground hover:text-foreground"
                   >
-                    {c.url.replace(/^https?:\/\//, '')}
+                    {c.url.replace(/^https?:\/\//, "")}
                   </a>
                 </div>
                 <p className="text-xs text-muted-foreground mt-0.5">
@@ -138,21 +138,21 @@ export function ProgressView({
 }
 
 function SiteTile({ site }: { site: SiteState }) {
-  const isFailed = site.status === 'failed';
+  const isFailed = site.status === "failed";
   const borderClass = isFailed
-    ? 'border-destructive/30 bg-destructive/5'
-    : site.role === 'user'
-      ? 'border-primary/40 bg-primary/5'
-      : 'border-border bg-background';
+    ? "border-destructive/30 bg-destructive/5"
+    : site.role === "user"
+      ? "border-primary/40 bg-primary/5"
+      : "border-border bg-background";
 
   return (
     <div
       className={cn(
-        'group overflow-hidden rounded-lg border transition-colors',
+        "group overflow-hidden rounded-lg border transition-colors",
         borderClass,
       )}
     >
-      <div className="aspect-[3/4] relative bg-muted overflow-hidden">
+      <div className="aspect-3/4 relative bg-muted overflow-hidden">
         {isFailed ? (
           <div className="absolute inset-0 flex items-center justify-center p-4 bg-[repeating-linear-gradient(45deg,transparent,transparent_6px,rgba(0,0,0,0.03)_6px,rgba(0,0,0,0.03)_12px)]">
             <div className="flex flex-col items-center gap-1.5 text-center">
@@ -171,7 +171,7 @@ function SiteTile({ site }: { site: SiteState }) {
                 <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
               </svg>
               <span className="text-[11px] font-medium text-destructive/80">
-                {site.failureLabel || 'Capture failed'}
+                {site.failureLabel || "Capture failed"}
               </span>
             </div>
           </div>
@@ -181,8 +181,8 @@ function SiteTile({ site }: { site: SiteState }) {
             src={site.screenshotUrl}
             alt={`${site.name} landing page`}
             className={cn(
-              'absolute inset-0 h-full w-full object-cover object-top transition-all',
-              site.status !== 'analyzed' && 'grayscale opacity-60',
+              "absolute inset-0 h-full w-full object-cover object-top transition-all",
+              site.status !== "analyzed" && "grayscale opacity-60",
             )}
           />
         ) : (
@@ -197,7 +197,7 @@ function SiteTile({ site }: { site: SiteState }) {
       <div className="p-3">
         <div className="flex items-center justify-between gap-2">
           <div className="text-sm font-medium truncate">{site.name}</div>
-          {site.role === 'user' && (
+          {site.role === "user" && (
             <Badge variant="default" className="text-[10px] px-1.5 py-0">
               You
             </Badge>
@@ -206,22 +206,22 @@ function SiteTile({ site }: { site: SiteState }) {
         <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
           <span
             className={cn(
-              'h-1.5 w-1.5 rounded-full',
-              site.status === 'analyzed' && 'bg-green-500',
-              site.status === 'captured' && 'bg-amber-500',
-              site.status === 'pending' && 'bg-muted-foreground/30',
-              site.status === 'failed' && 'bg-destructive/60',
+              "h-1.5 w-1.5 rounded-full",
+              site.status === "analyzed" && "bg-green-500",
+              site.status === "captured" && "bg-amber-500",
+              site.status === "pending" && "bg-muted-foreground/30",
+              site.status === "failed" && "bg-destructive/60",
             )}
           />
           <span
             className={cn(
-              'capitalize',
-              site.status === 'failed' && 'text-destructive/80',
+              "capitalize",
+              site.status === "failed" && "text-destructive/80",
             )}
-            title={site.status === 'failed' ? site.failureReason : undefined}
+            title={site.status === "failed" ? site.failureReason : undefined}
           >
-            {site.status === 'failed'
-              ? (site.failureLabel ?? 'Failed')
+            {site.status === "failed"
+              ? (site.failureLabel ?? "Failed")
               : site.status}
           </span>
         </div>
