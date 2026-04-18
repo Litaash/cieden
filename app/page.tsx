@@ -26,9 +26,9 @@ export default function HomePage() {
               <br className="hidden sm:block" /> critiqued by AI.
             </h1>
             <p className="mt-5 text-base leading-relaxed text-muted-foreground sm:text-lg">
-              Paste your URL. We find your direct competitors, capture
+              Paste your URL. We research your competitors, capture
               screenshots, and return an evidence-backed, prioritized design
-              crit in under 90 seconds.
+              crit.
             </p>
           </div>
 

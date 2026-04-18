@@ -49,14 +49,14 @@ components/
   ui/                      — shadcn primitives (badge, button, card, progress, separator, skeleton, sonner)
 lib/
   schemas.ts               — Zod schemas: SINGLE SOURCE OF TRUTH for all data shapes
-  orchestrator.ts          — wires agents, emits SSE events, manages concurrency
+  orchestrator.ts          — wires agents, emits SSE events, runs a streaming capture→analyze pipeline with a semaphore
   services/
     gemini.ts              — model factories: geminiFlash, geminiPro (env-overridable)
     firecrawl.ts           — captureLanding() wrapper; normalizes screenshot to Uint8Array
     blob.ts                — optional Blob persistence; fetchReport validates via ReportSchema
   agents/
     competitor-finder.ts   — 2-step: grounded search → structured extraction
-    scraper.ts             — parallel captureAll() with per-site error tolerance
+    scraper.ts             — legacy parallel captureAll() helper (not on the hot path; kept for tests / fallback)
     visual-analyst.ts      — Gemini Pro vision → VisualAnalysisSchema
     copy-analyst.ts        — Gemini Flash text → CopyAnalysisSchema
     synthesizer.ts         — Gemini Pro text → SynthesisSchema (evidence required)
@@ -70,8 +70,8 @@ lib/
 ### 2. Evidence-first: no schema, no insight
 Every `Insight` in `SynthesisSchema` requires an `evidence.yourSite.observation`. If the model can't ground a claim, the schema rejects it. Do not relax this constraint.
 
-### 3. Concurrency is intentionally limited
-`ANALYSIS_CONCURRENCY = 2` in `orchestrator.ts`. Gemini's free tier is ~20 RPM on Flash. Each site fires 2 analyst calls; 4 sites × 2 = 8 simultaneous requests blows the quota. Raising this above 2 without paid-tier billing will cause 429 cascades.
+### 3. Concurrency assumes paid Gemini quota
+`ANALYSIS_CONCURRENCY = 4` in `orchestrator.ts`. Each site fires 2 analyst calls, so peak in-flight analyst traffic is ~8 requests. This is fine on Gemini Tier 1 (paid), but reliably trips 429 on free tier (20 RPM on Flash). If running without billing, drop this to 2 and expect longer wall times. The orchestrator also starts the **user's capture in parallel with `findCompetitors`** and streams each site into analysis the moment its capture lands — capture and analyze phases overlap, so the 'capture' SSE status is only briefly the sole step.
 
 ### 4. Model defaults are free-tier-safe
 `lib/services/gemini.ts` defaults **both** `geminiFlash` and `geminiPro` to `gemini-2.5-flash`. Google zeroed the free-tier quota for `gemini-2.5-pro`. Upgrade via `GEMINI_PRO_MODEL=gemini-2.5-pro` in `.env.local` when billing is active.

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import type {
   AnalyzeEvent,
@@ -43,6 +43,23 @@ const INITIAL_STATE: State = {
 export function Analyzer() {
   const [state, setState] = useState<State>(INITIAL_STATE);
   const abortRef = useRef<AbortController | null>(null);
+
+  // Keep UI state in sync with browser back/forward: if the user navigates
+  // back from the report URL to `/`, we reset to the form instead of leaving
+  // a stale "done" state plastered on the root URL.
+  useEffect(() => {
+    const onPopState = () => {
+      if (
+        window.location.pathname === '/' &&
+        (state.phase === 'done' || state.phase === 'error')
+      ) {
+        abortRef.current?.abort();
+        setState(INITIAL_STATE);
+      }
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, [state.phase]);
 
   const handleSubmit = useCallback(async (rawUrl: string) => {
     const url = rawUrl.trim();
@@ -114,6 +131,12 @@ export function Analyzer() {
   const reset = useCallback(() => {
     abortRef.current?.abort();
     setState(INITIAL_STATE);
+    if (
+      typeof window !== 'undefined' &&
+      window.location.pathname.startsWith('/report/')
+    ) {
+      window.history.pushState(null, '', '/');
+    }
   }, []);
 
   if (state.phase === 'done' && state.report) {
@@ -247,6 +270,17 @@ function applyEvent(
         reportId: event.reportId,
         durationMs: Date.now() - startedAt,
       }));
+      // Mirror the persisted report id into the URL via pushState so that
+      // back navigates to the form, forward returns here, and copy-pasted
+      // links point at the canonical /report/[id] server page. pushState
+      // (vs router.push) avoids a server re-render flash because the inline
+      // ReportView already has the data.
+      if (typeof window !== 'undefined' && event.reportId) {
+        const target = `/report/${event.reportId}`;
+        if (window.location.pathname !== target) {
+          window.history.pushState(null, '', target);
+        }
+      }
       return;
 
     case 'error':

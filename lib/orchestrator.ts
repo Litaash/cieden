@@ -1,9 +1,9 @@
 import { nanoid } from 'nanoid';
 import { findCompetitors } from '@/lib/agents/competitor-finder';
-import { captureAll } from '@/lib/agents/scraper';
 import { analyzeVisual } from '@/lib/agents/visual-analyst';
 import { analyzeCopy } from '@/lib/agents/copy-analyst';
 import { synthesize } from '@/lib/agents/synthesizer';
+import { captureLanding, type CapturedSite } from '@/lib/services/firecrawl';
 import {
   isBlobConfigured,
   uploadScreenshot,
@@ -16,17 +16,37 @@ import type {
   Report,
   SiteAnalysis,
 } from '@/lib/schemas';
-import type { CapturedSite } from '@/lib/services/firecrawl';
 
 export type Emit = (event: AnalyzeEvent) => void;
 
 /**
- * Max parallel site analyses. Tuned to fit inside Gemini's free-tier RPM
- * (~20 req/min for 2.5-flash) given each site fires 2 analyst calls.
- * With concurrency=2 we peak at 4 in-flight analyst calls, leaving headroom
- * for the competitor-finder and synthesizer calls that run around it.
+ * Max parallel site analyses. With Gemini billing enabled (Tier 1) the
+ * 20 RPM free-tier ceiling is lifted, so we can run all four sites' analyst
+ * pairs simultaneously. With concurrency=4 we peak at ~8 in-flight analyst
+ * calls, comfortably under paid limits while keeping total wall time low.
  */
-const ANALYSIS_CONCURRENCY = 2;
+const ANALYSIS_CONCURRENCY = 4;
+
+interface CaptureResult {
+  url: string;
+  success: boolean;
+  site?: CapturedSite;
+  error?: string;
+}
+
+/** Capture a single site, converting thrown errors into tagged results. */
+async function captureOne(url: string): Promise<CaptureResult> {
+  try {
+    const site = await captureLanding(url);
+    return { url, success: true, site };
+  } catch (err) {
+    return {
+      url,
+      success: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
 
 /**
  * Full-pipeline orchestrator.
@@ -34,18 +54,24 @@ const ANALYSIS_CONCURRENCY = 2;
  * The `emit` callback is the one way the outside world learns about progress;
  * the API route turns these events into SSE frames.
  *
- * Design notes:
- *  - Parallelism where safe: capture, per-site analysis.
- *  - Tolerant to competitor failures: the synthesizer still runs with
- *    whatever competitor data is available (down to zero in the worst case,
- *    which is still a useful "your landing page" critique).
- *  - Blob is optional: when the token is absent we inline screenshots as
- *    data URLs on the report so the UI can render them without persistence.
+ * Key latency optimizations (from the slow, strictly-sequential MVP):
+ *  1. Kick off the user's own capture in parallel with competitor research.
+ *     findCompetitors takes 8-15s and we already know the user's URL — no
+ *     need to idle Firecrawl while Gemini searches Google.
+ *  2. Stream per-site analysis: fire visual+copy analysts the instant each
+ *     capture lands, instead of waiting for the slowest site to finish.
+ *  3. Run up to ANALYSIS_CONCURRENCY site pipelines in parallel (billing-
+ *     enabled Gemini quota lets us push this to 4 safely).
  */
 export async function runAnalysis(userUrl: string, emit: Emit): Promise<Report> {
   const reportId = nanoid(12);
   const now = new Date();
   const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
+  // Start the user's capture immediately. This overlaps Firecrawl's 20-60s
+  // scrape with the 8-15s competitor research, and keeps the hot path (user
+  // site analysis → synthesis) moving even if competitor picks take a while.
+  const userCapturePromise = captureOne(userUrl);
 
   emit({
     type: 'status',
@@ -56,107 +82,156 @@ export async function runAnalysis(userUrl: string, emit: Emit): Promise<Report> 
   const { competitors, userName } = await findCompetitors(userUrl);
   emit({ type: 'competitors', competitors });
 
-  const sitesToCapture: { url: string; name: string; isUser: boolean }[] = [
-    { url: userUrl, name: userName, isUser: true },
-    ...competitors.map((c) => ({ url: c.url, name: c.name, isUser: false })),
-  ];
-
   emit({
     type: 'status',
     step: 'capture',
-    message: `Capturing screenshots for ${sitesToCapture.length} sites…`,
+    message: `Capturing screenshots for ${1 + competitors.length} sites…`,
   });
 
-  const captureResults = await captureAll(sitesToCapture.map((s) => s.url));
+  // Now that we know the competitor URLs, fire their captures in parallel
+  // with the user capture we already have in flight.
+  const competitorCapturePromises = competitors.map((c) => captureOne(c.url));
 
-  // For each captured site we produce a displayable URL (Blob URL when
-  // configured; inline data URL otherwise) plus keep the raw bytes for the
-  // Visual Analyst.
-  const captured: {
+  const siteMeta: {
     url: string;
     name: string;
     isUser: boolean;
-    site: CapturedSite;
-    screenshotUrl: string;
-  }[] = [];
+    capturePromise: Promise<CaptureResult>;
+  }[] = [
+    {
+      url: userUrl,
+      name: userName,
+      isUser: true,
+      capturePromise: userCapturePromise,
+    },
+    ...competitors.map((c, i) => ({
+      url: c.url,
+      name: c.name,
+      isUser: false,
+      capturePromise: competitorCapturePromises[i]!,
+    })),
+  ];
 
-  // Track the reason the primary site capture failed (if it did) so we can
-  // surface the real cause in the thrown error instead of a generic message.
-  let primaryCaptureError: string | null = null;
   const failedCaptures: FailedCapture[] = [];
+  let primaryCaptureError: string | null = null;
+  const analysisGate = makeSemaphore(ANALYSIS_CONCURRENCY);
 
-  for (const [i, res] of captureResults.entries()) {
-    const meta = sitesToCapture[i];
-    if (!meta) continue;
-    if (!res.success || !res.site) {
-      const reason = res.error ?? 'unknown error';
-      if (meta.isUser) primaryCaptureError = reason;
-      console.error(
-        `[orchestrator] capture failed for ${meta.url} (isUser=${meta.isUser}): ${reason}`,
-      );
-      const failure: FailedCapture = {
-        url: meta.url,
-        name: meta.name,
-        isUser: meta.isUser,
-        reason,
-        ...classifyFailure(reason),
-      };
-      failedCaptures.push(failure);
-      emit({
-        type: 'siteFailed',
-        url: meta.url,
-        name: meta.name,
-        failure,
-      });
-      continue;
-    }
+  // Switch the client-visible step to "analyze" up front — the first analyst
+  // call will fire as soon as the first capture resolves, which may be before
+  // the slowest capture is done. The progress bar's sub-progress logic
+  // handles the fact that capture/analyze now overlap.
+  let analyzeStepAnnounced = false;
+  const announceAnalyze = () => {
+    if (analyzeStepAnnounced) return;
+    analyzeStepAnnounced = true;
+    emit({
+      type: 'status',
+      step: 'analyze',
+      message: `Running visual + copy analysis (concurrency ${ANALYSIS_CONCURRENCY})…`,
+    });
+  };
 
-    const slug = slugify(meta.name || meta.url);
-    let screenshotUrl: string;
-    if (isBlobConfigured()) {
-      try {
-        screenshotUrl = await uploadScreenshot({
-          reportId,
-          siteSlug: slug,
-          bytes: res.site.screenshot,
-          mimeType: res.site.screenshotMimeType,
-        });
-      } catch {
+  const sitePipelines: Promise<SiteAnalysis | null>[] = siteMeta.map(
+    async (meta): Promise<SiteAnalysis | null> => {
+      const res = await meta.capturePromise;
+
+      if (!res.success || !res.site) {
+        const reason = res.error ?? 'unknown error';
+        if (meta.isUser) primaryCaptureError = reason;
+        console.error(
+          `[orchestrator] capture failed for ${meta.url} (isUser=${meta.isUser}): ${reason}`,
+        );
+        const failure: FailedCapture = {
+          url: meta.url,
+          name: meta.name,
+          isUser: meta.isUser,
+          reason,
+          ...classifyFailure(reason),
+        };
+        failedCaptures.push(failure);
         emit({
-          type: 'status',
-          step: 'capture',
-          message: `Blob upload failed for ${meta.name}, using inline data URL`,
+          type: 'siteFailed',
+          url: meta.url,
+          name: meta.name,
+          failure,
         });
+        return null;
+      }
+
+      const captured = res.site;
+      const slug = slugify(meta.name || meta.url);
+      let screenshotUrl: string;
+      if (isBlobConfigured()) {
+        try {
+          screenshotUrl = await uploadScreenshot({
+            reportId,
+            siteSlug: slug,
+            bytes: captured.screenshot,
+            mimeType: captured.screenshotMimeType,
+          });
+        } catch {
+          emit({
+            type: 'status',
+            step: 'capture',
+            message: `Blob upload failed for ${meta.name}, using inline data URL`,
+          });
+          screenshotUrl = bytesToDataUrl(
+            captured.screenshot,
+            captured.screenshotMimeType,
+          );
+        }
+      } else {
         screenshotUrl = bytesToDataUrl(
-          res.site.screenshot,
-          res.site.screenshotMimeType,
+          captured.screenshot,
+          captured.screenshotMimeType,
         );
       }
-    } else {
-      screenshotUrl = bytesToDataUrl(
-        res.site.screenshot,
-        res.site.screenshotMimeType,
-      );
-    }
 
-    captured.push({
-      url: meta.url,
-      name: meta.name,
-      isUser: meta.isUser,
-      site: res.site,
-      screenshotUrl,
-    });
+      emit({
+        type: 'siteReady',
+        url: meta.url,
+        name: meta.name,
+        screenshotUrl,
+      });
 
-    emit({
-      type: 'siteReady',
-      url: meta.url,
-      name: meta.name,
-      screenshotUrl,
-    });
-  }
+      // Announce "analyze" right before we touch an analyst so the progress
+      // bar moves into the analysis range the moment work actually begins.
+      announceAnalyze();
 
-  const userEntry = captured.find((c) => c.isUser);
-  if (!userEntry) {
+      return analysisGate.run(async () => {
+        const [visual, copy] = await Promise.all([
+          analyzeVisual({
+            screenshot: captured.screenshot,
+            screenshotMimeType: captured.screenshotMimeType,
+            siteName: meta.name,
+            siteUrl: meta.url,
+          }),
+          analyzeCopy({
+            markdown: captured.markdown,
+            siteName: meta.name,
+            siteUrl: meta.url,
+          }),
+        ]);
+        const analysis: SiteAnalysis = {
+          url: meta.url,
+          name: meta.name,
+          screenshotUrl,
+          visual,
+          copy,
+        };
+        emit({ type: 'siteAnalyzed', analysis });
+        return analysis;
+      });
+    },
+  );
+
+  const settled = await Promise.all(sitePipelines);
+  const analyses: SiteAnalysis[] = settled.filter(
+    (a): a is SiteAnalysis => a !== null,
+  );
+
+  const userAnalysis = analyses.find((a) => a.url === userUrl);
+  if (!userAnalysis) {
     const detail = primaryCaptureError
       ? ` Firecrawl error: ${primaryCaptureError}`
       : '';
@@ -164,57 +239,13 @@ export async function runAnalysis(userUrl: string, emit: Emit): Promise<Report> 
       `Could not capture the primary site (${userUrl}). The site may be blocking scrapers, require login, or be temporarily down.${detail}`,
     );
   }
-
-  emit({
-    type: 'status',
-    step: 'analyze',
-    message: `Running visual + copy analysis (concurrency ${ANALYSIS_CONCURRENCY})…`,
-  });
-
-  // Why batched, not a full Promise.all?
-  // Gemini's free-tier RPM for 2.5-flash is tight (≈20 req/min). Each site
-  // fires 2 analyst calls; 4 sites × 2 = 8 simultaneous requests, plus the
-  // competitor-finder and synthesizer on either side. Running all sites in
-  // parallel reliably trips 429s. Batching to 2 sites at a time spaces the
-  // requests enough to stay under the quota while still using parallelism.
-  const analyses: SiteAnalysis[] = await runWithConcurrency(
-    captured,
-    ANALYSIS_CONCURRENCY,
-    async (c): Promise<SiteAnalysis> => {
-      const [visual, copy] = await Promise.all([
-        analyzeVisual({
-          screenshot: c.site.screenshot,
-          screenshotMimeType: c.site.screenshotMimeType,
-          siteName: c.name,
-          siteUrl: c.url,
-        }),
-        analyzeCopy({
-          markdown: c.site.markdown,
-          siteName: c.name,
-          siteUrl: c.url,
-        }),
-      ]);
-      const analysis: SiteAnalysis = {
-        url: c.url,
-        name: c.name,
-        screenshotUrl: c.screenshotUrl,
-        visual,
-        copy,
-      };
-      emit({ type: 'siteAnalyzed', analysis });
-      return analysis;
-    },
-  );
+  const competitorAnalyses = analyses.filter((a) => a.url !== userUrl);
 
   emit({
     type: 'status',
     step: 'synthesize',
     message: 'Synthesizing prioritized, evidence-backed insights…',
   });
-
-  const userAnalysis = analyses.find((a) => a.url === userUrl);
-  const competitorAnalyses = analyses.filter((a) => a.url !== userUrl);
-  if (!userAnalysis) throw new Error('User analysis missing after capture');
 
   const synthesis = await synthesize({ userAnalysis, competitorAnalyses });
 
@@ -232,6 +263,11 @@ export async function runAnalysis(userUrl: string, emit: Emit): Promise<Report> 
 
   let persistedId: string | null = null;
   if (isBlobConfigured()) {
+    emit({
+      type: 'status',
+      step: 'persist',
+      message: 'Saving shareable report…',
+    });
     try {
       await uploadReport(report);
       persistedId = reportId;
@@ -297,26 +333,38 @@ function classifyFailure(reason: string): {
 }
 
 /**
- * Tiny p-limit replacement: run `worker` over `items` with at most `limit`
- * in flight at any time, preserving input order in the output array. Avoids
- * pulling in a dependency for a one-use case.
+ * Tiny semaphore: caps concurrent analyst runs so we don't spike past
+ * Gemini's RPM even when all 4 captures land within a few seconds of
+ * each other. Inline instead of pulling in p-limit for a single call site.
  */
-async function runWithConcurrency<T, R>(
-  items: T[],
-  limit: number,
-  worker: (item: T, index: number) => Promise<R>,
-): Promise<R[]> {
-  const results: R[] = new Array(items.length);
-  let cursor = 0;
-  const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
-    while (true) {
-      const i = cursor++;
-      if (i >= items.length) return;
-      const item = items[i];
-      if (item === undefined) return;
-      results[i] = await worker(item, i);
+function makeSemaphore(limit: number): { run: <T>(fn: () => Promise<T>) => Promise<T> } {
+  let active = 0;
+  const queue: (() => void)[] = [];
+  const take = (): Promise<void> => {
+    if (active < limit) {
+      active++;
+      return Promise.resolve();
     }
-  });
-  await Promise.all(runners);
-  return results;
+    return new Promise<void>((resolve) => {
+      queue.push(() => {
+        active++;
+        resolve();
+      });
+    });
+  };
+  const release = () => {
+    active--;
+    const next = queue.shift();
+    if (next) next();
+  };
+  return {
+    run: async <T>(fn: () => Promise<T>): Promise<T> => {
+      await take();
+      try {
+        return await fn();
+      } finally {
+        release();
+      }
+    },
+  };
 }

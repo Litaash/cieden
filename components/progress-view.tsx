@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import type {
   Competitor,
@@ -29,7 +30,9 @@ const STEP_ORDER = [
   "persist",
 ] as const;
 
-const STEP_LABELS: Record<(typeof STEP_ORDER)[number], string> = {
+type Step = (typeof STEP_ORDER)[number];
+
+const STEP_LABELS: Record<Step, string> = {
   starting: "Starting",
   competitors: "Finding competitors",
   capture: "Capturing screenshots",
@@ -37,6 +40,37 @@ const STEP_LABELS: Record<(typeof STEP_ORDER)[number], string> = {
   synthesize: "Synthesizing insights",
   persist: "Saving report",
 };
+
+// Weighted slices of total progress per step. Tuned to how long each
+// phase actually takes in practice: analysis dominates, capture is second,
+// competitor research and synthesis are each ~10-15%. Each range is
+// [lowBound, highBound] of the overall bar.
+const STEP_RANGES: Record<Step, [number, number]> = {
+  starting: [0, 4],
+  competitors: [4, 20],
+  capture: [20, 48],
+  analyze: [48, 88],
+  synthesize: [88, 96],
+  persist: [96, 100],
+};
+
+function computeTarget(step: string, sites: SiteState[]): number {
+  const range = STEP_RANGES[step as Step];
+  if (!range) return 0;
+  const [lo, hi] = range;
+  const total = sites.length || 4;
+  if (step === "capture") {
+    const done = sites.filter((s) => s.status !== "pending").length;
+    return lo + (hi - lo) * (total > 0 ? done / total : 0);
+  }
+  if (step === "analyze") {
+    const done = sites.filter(
+      (s) => s.status === "analyzed" || s.status === "failed",
+    ).length;
+    return lo + (hi - lo) * (total > 0 ? done / total : 0);
+  }
+  return lo;
+}
 
 interface Props {
   step: string;
@@ -55,15 +89,39 @@ export function ProgressView({
 }: Props) {
   const currentStepIndex = Math.max(
     0,
-    STEP_ORDER.indexOf(step as (typeof STEP_ORDER)[number]),
-  );
-  const progressPct = Math.min(
-    100,
-    Math.round(((currentStepIndex + 1) / STEP_ORDER.length) * 100),
+    STEP_ORDER.indexOf(step as Step),
   );
 
+  const target = computeTarget(step, sites);
+  const stepRange = STEP_RANGES[step as Step] ?? [0, 100];
+  const stepCeiling = stepRange[1];
+
+  // `displayedPct` is what the UI actually paints. It reacts to events
+  // (jumping up to `target`) and, when the target is static, gently creeps
+  // toward the current step's upper bound so the bar never looks frozen.
+  const [displayedPct, setDisplayedPct] = useState(0);
+  const targetRef = useRef(target);
+  const ceilingRef = useRef(stepCeiling);
+  targetRef.current = target;
+  ceilingRef.current = stepCeiling;
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setDisplayedPct((prev) => {
+        const t = targetRef.current;
+        const creepCap = Math.max(t, ceilingRef.current - 2);
+        if (prev < t) return Math.min(t, prev + 1.8);
+        if (prev < creepCap) return Math.min(creepCap, prev + 0.35);
+        return prev;
+      });
+    }, 280);
+    return () => clearInterval(id);
+  }, []);
+
+  const progressPct = Math.min(100, Math.max(0, displayedPct));
+
   const currentLabel =
-    STEP_LABELS[step as (typeof STEP_ORDER)[number]] ?? "Working…";
+    STEP_LABELS[step as Step] ?? "Working…";
 
   return (
     <div className="mx-auto w-full max-w-4xl">
@@ -85,7 +143,7 @@ export function ProgressView({
 
       <div className="mt-2.5 h-0.5 w-full overflow-hidden rounded-full bg-muted">
         <div
-          className="h-full rounded-full bg-primary transition-all duration-500"
+          className="h-full rounded-full bg-primary transition-[width] duration-300 ease-out"
           style={{ width: `${progressPct}%` }}
         />
       </div>
