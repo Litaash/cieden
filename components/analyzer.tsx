@@ -205,6 +205,24 @@ function applyEvent(
       }));
       return;
 
+    case 'siteFailed':
+      setState((s) => ({
+        ...s,
+        sites: s.sites.map((site) =>
+          site.url === event.url
+            ? {
+                ...site,
+                name: event.name,
+                status: 'failed',
+                failureLabel: event.failure.reasonLabel,
+                failureReason: event.failure.reason,
+                failureCategory: event.failure.reasonCategory,
+              }
+            : site,
+        ),
+      }));
+      return;
+
     case 'siteAnalyzed':
       setState((s) => ({
         ...s,

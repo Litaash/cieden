@@ -2,16 +2,23 @@
 
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import type { Competitor, SiteAnalysis } from '@/lib/schemas';
+import type {
+  Competitor,
+  FailureReasonCategory,
+  SiteAnalysis,
+} from '@/lib/schemas';
 import { cn } from '@/lib/utils';
 
 export interface SiteState {
   url: string;
   name: string;
   role: 'user' | 'competitor';
-  status: 'pending' | 'captured' | 'analyzed';
+  status: 'pending' | 'captured' | 'analyzed' | 'failed';
   screenshotUrl?: string;
   analysis?: SiteAnalysis;
+  failureLabel?: string;
+  failureReason?: string;
+  failureCategory?: FailureReasonCategory;
 }
 
 const STEP_ORDER = [
@@ -131,8 +138,10 @@ export function ProgressView({
 }
 
 function SiteTile({ site }: { site: SiteState }) {
-  const borderClass =
-    site.role === 'user'
+  const isFailed = site.status === 'failed';
+  const borderClass = isFailed
+    ? 'border-destructive/30 bg-destructive/5'
+    : site.role === 'user'
       ? 'border-primary/40 bg-primary/5'
       : 'border-border bg-background';
 
@@ -144,7 +153,29 @@ function SiteTile({ site }: { site: SiteState }) {
       )}
     >
       <div className="aspect-[3/4] relative bg-muted overflow-hidden">
-        {site.screenshotUrl ? (
+        {isFailed ? (
+          <div className="absolute inset-0 flex items-center justify-center p-4 bg-[repeating-linear-gradient(45deg,transparent,transparent_6px,rgba(0,0,0,0.03)_6px,rgba(0,0,0,0.03)_12px)]">
+            <div className="flex flex-col items-center gap-1.5 text-center">
+              <svg
+                aria-hidden
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-6 w-6 text-destructive/70"
+              >
+                <path d="M12 9v4" />
+                <path d="M12 17h.01" />
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+              </svg>
+              <span className="text-[11px] font-medium text-destructive/80">
+                {site.failureLabel || 'Capture failed'}
+              </span>
+            </div>
+          </div>
+        ) : site.screenshotUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={site.screenshotUrl}
@@ -179,9 +210,20 @@ function SiteTile({ site }: { site: SiteState }) {
               site.status === 'analyzed' && 'bg-green-500',
               site.status === 'captured' && 'bg-amber-500',
               site.status === 'pending' && 'bg-muted-foreground/30',
+              site.status === 'failed' && 'bg-destructive/60',
             )}
           />
-          <span className="capitalize">{site.status}</span>
+          <span
+            className={cn(
+              'capitalize',
+              site.status === 'failed' && 'text-destructive/80',
+            )}
+            title={site.status === 'failed' ? site.failureReason : undefined}
+          >
+            {site.status === 'failed'
+              ? (site.failureLabel ?? 'Failed')
+              : site.status}
+          </span>
         </div>
       </div>
     </div>

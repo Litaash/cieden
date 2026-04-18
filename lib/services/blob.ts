@@ -1,5 +1,5 @@
 import { put, list } from '@vercel/blob';
-import type { Report } from '@/lib/schemas';
+import { ReportSchema, type Report } from '@/lib/schemas';
 
 /**
  * Vercel Blob adapter.
@@ -68,7 +68,14 @@ export async function fetchReport(id: string): Promise<Report | null> {
     if (!manifest) return null;
     const res = await fetch(manifest.url, { cache: 'no-store' });
     if (!res.ok) return null;
-    return (await res.json()) as Report;
+    // Parse through the schema so added fields (e.g. failedCaptures) get
+    // their defaults when reading reports persisted before the schema grew.
+    const parsed = ReportSchema.safeParse(await res.json());
+    if (!parsed.success) {
+      console.error('[blob.fetchReport] invalid report JSON', parsed.error);
+      return null;
+    }
+    return parsed.data;
   } catch {
     return null;
   }

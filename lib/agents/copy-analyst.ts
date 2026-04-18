@@ -25,6 +25,7 @@ export async function analyzeCopy(args: {
   const { object } = await generateObject({
     model: geminiFlash,
     temperature: ANALYSIS_TEMPERATURE,
+    maxRetries: 4,
     schema: CopyAnalysisSchema,
     system:
       'You are a senior product marketing lead analyzing SaaS landing pages. You read carefully and quote verbatim. You never invent text that is not in the source material. If the page does not clearly state something, you leave that field null or say so explicitly.',

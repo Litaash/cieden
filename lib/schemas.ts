@@ -153,6 +153,30 @@ export const SynthesisSchema = z.object({
 });
 export type Synthesis = z.infer<typeof SynthesisSchema>;
 
+/**
+ * A short, human-friendly categorization of why a capture failed. We keep the
+ * full Firecrawl error string alongside for power users / debugging.
+ */
+export const FailureReasonCategorySchema = z.enum([
+  'blocked', // bot protection / Cloudflare / scraping engines refused
+  'timeout', // page did not finish loading within the budget
+  'not_found', // 404 / invalid URL
+  'other',
+]);
+export type FailureReasonCategory = z.infer<typeof FailureReasonCategorySchema>;
+
+export const FailedCaptureSchema = z.object({
+  url: z.string(),
+  name: z.string(),
+  isUser: z.boolean(),
+  reason: z.string().describe('Raw error text from Firecrawl (for details/tooltip).'),
+  reasonCategory: FailureReasonCategorySchema,
+  reasonLabel: z
+    .string()
+    .describe('Short human label, e.g. "Blocked by bot protection".'),
+});
+export type FailedCapture = z.infer<typeof FailedCaptureSchema>;
+
 /** Persisted report shape. */
 export const ReportSchema = z.object({
   id: z.string(),
@@ -160,6 +184,7 @@ export const ReportSchema = z.object({
   userName: z.string(),
   competitors: z.array(CompetitorSchema),
   analyses: z.array(SiteAnalysisSchema),
+  failedCaptures: z.array(FailedCaptureSchema).default([]),
   synthesis: SynthesisSchema,
   createdAt: z.string(),
   expiresAt: z.string(),
@@ -171,6 +196,7 @@ export type AnalyzeEvent =
   | { type: 'status'; step: string; message: string }
   | { type: 'competitors'; competitors: Competitor[] }
   | { type: 'siteReady'; url: string; name: string; screenshotUrl: string }
+  | { type: 'siteFailed'; url: string; name: string; failure: FailedCapture }
   | { type: 'siteAnalyzed'; analysis: SiteAnalysis }
   | { type: 'complete'; reportId: string | null; report: Report }
   | { type: 'error'; message: string };

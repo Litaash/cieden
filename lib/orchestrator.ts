@@ -9,10 +9,24 @@ import {
   uploadScreenshot,
   uploadReport,
 } from '@/lib/services/blob';
-import type { AnalyzeEvent, Report, SiteAnalysis } from '@/lib/schemas';
+import type {
+  AnalyzeEvent,
+  FailedCapture,
+  FailureReasonCategory,
+  Report,
+  SiteAnalysis,
+} from '@/lib/schemas';
 import type { CapturedSite } from '@/lib/services/firecrawl';
 
 export type Emit = (event: AnalyzeEvent) => void;
+
+/**
+ * Max parallel site analyses. Tuned to fit inside Gemini's free-tier RPM
+ * (~20 req/min for 2.5-flash) given each site fires 2 analyst calls.
+ * With concurrency=2 we peak at 4 in-flight analyst calls, leaving headroom
+ * for the competitor-finder and synthesizer calls that run around it.
+ */
+const ANALYSIS_CONCURRENCY = 2;
 
 /**
  * Full-pipeline orchestrator.
@@ -66,14 +80,33 @@ export async function runAnalysis(userUrl: string, emit: Emit): Promise<Report> 
     screenshotUrl: string;
   }[] = [];
 
+  // Track the reason the primary site capture failed (if it did) so we can
+  // surface the real cause in the thrown error instead of a generic message.
+  let primaryCaptureError: string | null = null;
+  const failedCaptures: FailedCapture[] = [];
+
   for (const [i, res] of captureResults.entries()) {
     const meta = sitesToCapture[i];
     if (!meta) continue;
     if (!res.success || !res.site) {
+      const reason = res.error ?? 'unknown error';
+      if (meta.isUser) primaryCaptureError = reason;
+      console.error(
+        `[orchestrator] capture failed for ${meta.url} (isUser=${meta.isUser}): ${reason}`,
+      );
+      const failure: FailedCapture = {
+        url: meta.url,
+        name: meta.name,
+        isUser: meta.isUser,
+        reason,
+        ...classifyFailure(reason),
+      };
+      failedCaptures.push(failure);
       emit({
-        type: 'status',
-        step: 'capture',
-        message: `Could not capture ${meta.url}: ${res.error ?? 'unknown error'}`,
+        type: 'siteFailed',
+        url: meta.url,
+        name: meta.name,
+        failure,
       });
       continue;
     }
@@ -124,19 +157,30 @@ export async function runAnalysis(userUrl: string, emit: Emit): Promise<Report> 
 
   const userEntry = captured.find((c) => c.isUser);
   if (!userEntry) {
+    const detail = primaryCaptureError
+      ? ` Firecrawl error: ${primaryCaptureError}`
+      : '';
     throw new Error(
-      'Could not capture the primary site. Check the URL and try again.',
+      `Could not capture the primary site (${userUrl}). The site may be blocking scrapers, require login, or be temporarily down.${detail}`,
     );
   }
 
   emit({
     type: 'status',
     step: 'analyze',
-    message: 'Running visual + copy analysis in parallel…',
+    message: `Running visual + copy analysis (concurrency ${ANALYSIS_CONCURRENCY})…`,
   });
 
-  const analyses: SiteAnalysis[] = await Promise.all(
-    captured.map(async (c): Promise<SiteAnalysis> => {
+  // Why batched, not a full Promise.all?
+  // Gemini's free-tier RPM for 2.5-flash is tight (≈20 req/min). Each site
+  // fires 2 analyst calls; 4 sites × 2 = 8 simultaneous requests, plus the
+  // competitor-finder and synthesizer on either side. Running all sites in
+  // parallel reliably trips 429s. Batching to 2 sites at a time spaces the
+  // requests enough to stay under the quota while still using parallelism.
+  const analyses: SiteAnalysis[] = await runWithConcurrency(
+    captured,
+    ANALYSIS_CONCURRENCY,
+    async (c): Promise<SiteAnalysis> => {
       const [visual, copy] = await Promise.all([
         analyzeVisual({
           screenshot: c.site.screenshot,
@@ -159,7 +203,7 @@ export async function runAnalysis(userUrl: string, emit: Emit): Promise<Report> 
       };
       emit({ type: 'siteAnalyzed', analysis });
       return analysis;
-    }),
+    },
   );
 
   emit({
@@ -180,6 +224,7 @@ export async function runAnalysis(userUrl: string, emit: Emit): Promise<Report> 
     userName,
     competitors,
     analyses,
+    failedCaptures: failedCaptures.filter((f) => !f.isUser),
     synthesis,
     createdAt: now.toISOString(),
     expiresAt: expiresAt.toISOString(),
@@ -215,4 +260,63 @@ function slugify(s: string): string {
 function bytesToDataUrl(bytes: Uint8Array, mime: string): string {
   const b64 = Buffer.from(bytes).toString('base64');
   return `data:${mime};base64,${b64}`;
+}
+
+/**
+ * Classify a raw Firecrawl error string into a short, human-friendly label
+ * and a machine-readable category. Keeps the UI clean (short badge text)
+ * while preserving the full technical reason for power users / tooltips.
+ */
+function classifyFailure(reason: string): {
+  reasonCategory: FailureReasonCategory;
+  reasonLabel: string;
+} {
+  const lower = reason.toLowerCase();
+  if (
+    lower.includes('all scraping engines failed') ||
+    lower.includes('blocking automated access') ||
+    lower.includes('cloudflare') ||
+    lower.includes('bot')
+  ) {
+    return {
+      reasonCategory: 'blocked',
+      reasonLabel: 'Blocked by bot protection',
+    };
+  }
+  if (lower.includes('timed out') || lower.includes('timeout')) {
+    return { reasonCategory: 'timeout', reasonLabel: 'Timed out' };
+  }
+  if (
+    lower.includes('404') ||
+    lower.includes("doesn't exist") ||
+    lower.includes('not found')
+  ) {
+    return { reasonCategory: 'not_found', reasonLabel: 'Page not found' };
+  }
+  return { reasonCategory: 'other', reasonLabel: 'Capture failed' };
+}
+
+/**
+ * Tiny p-limit replacement: run `worker` over `items` with at most `limit`
+ * in flight at any time, preserving input order in the output array. Avoids
+ * pulling in a dependency for a one-use case.
+ */
+async function runWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  worker: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let cursor = 0;
+  const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (true) {
+      const i = cursor++;
+      if (i >= items.length) return;
+      const item = items[i];
+      if (item === undefined) return;
+      results[i] = await worker(item, i);
+    }
+  });
+  await Promise.all(runners);
+  return results;
 }

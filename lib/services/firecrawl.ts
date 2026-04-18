@@ -54,6 +54,14 @@ function getClient(): Firecrawl {
  */
 export async function captureLanding(url: string): Promise<CapturedSite> {
   const fc = getClient();
+  // Timeout notes:
+  //  - Heavy SaaS landing pages with Cloudflare / bot-detection routinely take
+  //    60-120s through Firecrawl's stealth proxy. 180s gives us headroom while
+  //    still fitting inside the Vercel function maxDuration (300s) when 4 sites
+  //    run in parallel.
+  //  - `waitFor: 2000` — let hero animations, client-side redirects and late
+  //    hydration finish before the screenshot is taken; without it we sometimes
+  //    capture loading skeletons.
   const doc = await fc.scrape(url, {
     formats: [
       'markdown',
@@ -61,7 +69,8 @@ export async function captureLanding(url: string): Promise<CapturedSite> {
     ],
     onlyMainContent: false,
     blockAds: true,
-    timeout: 60_000,
+    timeout: 180_000,
+    waitFor: 2000,
     // stealth proxy reduces blocks on Cloudflare-protected SaaS sites
     proxy: 'auto',
   });

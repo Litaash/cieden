@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import type {
+  FailedCapture,
   Insight,
   InsightCategory,
   Report,
@@ -108,7 +109,10 @@ export function ReportView({ report, persistedReportId, onReset }: Props) {
       />
 
       {report.competitors.length > 0 && (
-        <CompetitorSources competitors={report.competitors} />
+        <CompetitorSources
+          competitors={report.competitors}
+          failedCaptures={report.failedCaptures ?? []}
+        />
       )}
 
       <footer className="pt-6 text-xs text-muted-foreground">
@@ -427,51 +431,93 @@ function SitePanel({
   );
 }
 
-function CompetitorSources({ competitors }: { competitors: Report['competitors'] }) {
+function CompetitorSources({
+  competitors,
+  failedCaptures,
+}: {
+  competitors: Report['competitors'];
+  failedCaptures: FailedCapture[];
+}) {
+  const failedByUrl = new Map(failedCaptures.map((f) => [f.url, f]));
   return (
     <section>
       <h2 className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
         How we picked these competitors
       </h2>
       <ul className="mt-3 space-y-3">
-        {competitors.map((c) => (
-          <li key={c.url} className="rounded-lg border bg-card/50 p-4 text-sm">
-            <div className="flex items-baseline justify-between gap-3">
-              <span className="font-medium">{c.name}</span>
-              <a
-                href={c.url}
-                target="_blank"
-                rel="noreferrer"
-                className="text-xs text-muted-foreground hover:text-foreground"
-              >
-                {c.url.replace(/^https?:\/\//, '')}
-              </a>
-            </div>
-            <p className="mt-1 text-sm text-muted-foreground">{c.reasoning}</p>
-            {c.sourceUrls && c.sourceUrls.length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {c.sourceUrls.map((s) => (
-                  <a
-                    key={s}
-                    href={s}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="rounded-full border bg-background px-2 py-0.5 text-[10px] text-muted-foreground hover:text-foreground"
-                  >
-                    {(() => {
-                      try {
-                        return new URL(s).hostname.replace(/^www\./, '');
-                      } catch {
-                        return s;
-                      }
-                    })()}
-                  </a>
-                ))}
+        {competitors.map((c) => {
+          const failure = failedByUrl.get(c.url);
+          return (
+            <li
+              key={c.url}
+              className={cn(
+                'rounded-lg border p-4 text-sm',
+                failure ? 'border-destructive/30 bg-destructive/5' : 'bg-card/50',
+              )}
+            >
+              <div className="flex items-baseline justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">{c.name}</span>
+                  {failure && (
+                    <Badge
+                      variant="outline"
+                      className="border-destructive/30 bg-destructive/10 text-destructive/80 text-[10px] font-normal px-1.5 py-0"
+                    >
+                      {failure.reasonLabel}
+                    </Badge>
+                  )}
+                </div>
+                <a
+                  href={c.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                >
+                  {c.url.replace(/^https?:\/\//, '')}
+                </a>
               </div>
-            )}
-          </li>
-        ))}
+              <p className="mt-1 text-sm text-muted-foreground">{c.reasoning}</p>
+              {failure && (
+                <p className="mt-2 text-xs text-destructive/70">
+                  Not included in the comparison — we couldn&rsquo;t capture this
+                  site.{' '}
+                  <span className="text-muted-foreground">
+                    {shortenReason(failure.reason)}
+                  </span>
+                </p>
+              )}
+              {c.sourceUrls && c.sourceUrls.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {c.sourceUrls.map((s) => (
+                    <a
+                      key={s}
+                      href={s}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="rounded-full border bg-background px-2 py-0.5 text-[10px] text-muted-foreground hover:text-foreground"
+                    >
+                      {(() => {
+                        try {
+                          return new URL(s).hostname.replace(/^www\./, '');
+                        } catch {
+                          return s;
+                        }
+                      })()}
+                    </a>
+                  ))}
+                </div>
+              )}
+            </li>
+          );
+        })}
       </ul>
     </section>
   );
+}
+
+function shortenReason(reason: string): string {
+  const firstSentence = reason.split(/(?<=[.!?])\s/)[0] ?? reason;
+  return firstSentence.length > 180
+    ? firstSentence.slice(0, 177) + '…'
+    : firstSentence;
 }

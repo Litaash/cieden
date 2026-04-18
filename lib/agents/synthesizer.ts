@@ -60,6 +60,7 @@ Audience: ${s.copy.targetAudience}
   const { object } = await generateObject({
     model: geminiPro,
     temperature: ANALYSIS_TEMPERATURE,
+    maxRetries: 4,
     schema: SynthesisSchema,
     system:
       'You are a senior product designer delivering a private design crit. You are specific, evidence-backed, and opinionated. You never issue generic advice ("improve your CTA"). Every insight references a concrete observation from the user\'s page and, where possible, a specific competitor by name. When you are not confident, you say so via confidence < 0.5 — you never fabricate details that are not in the source analyses.',

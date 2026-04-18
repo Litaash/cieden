@@ -17,6 +17,7 @@ export const metadata: Metadata = {
   title: 'Landing Crit — Competitive SaaS Landing Page Analyzer',
   description:
     "A senior-designer's critique of your SaaS landing page, benchmarked against direct competitors. Evidence-backed, prioritized, in under 90 seconds.",
+  robots: { index: false, follow: false },
 };
 
 export default function RootLayout({

@@ -40,6 +40,7 @@ export async function findCompetitors(
   const research = await generateText({
     model: geminiFlash,
     temperature: ANALYSIS_TEMPERATURE,
+    maxRetries: 4,
     tools: { google_search: googleSearchTool },
     prompt: `You are a senior SaaS product researcher. Identify the ${count} most DIRECT competitors of the landing page at ${userUrl}.
 
@@ -74,6 +75,7 @@ Competitors:
   const extraction = await generateObject({
     model: geminiFlash,
     temperature: 0,
+    maxRetries: 4,
     schema: CompetitorListSchema.extend({
       userName: CompetitorListSchema.shape.competitors.element.shape.name,
     }),

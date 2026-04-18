@@ -28,6 +28,9 @@ export async function analyzeVisual(args: {
   const { object } = await generateObject({
     model: geminiPro,
     temperature: ANALYSIS_TEMPERATURE,
+    // Bumped above SDK default (2) so the exponential-backoff retries cover
+    // the ~60s window needed for Gemini's free-tier RPM to recover on 429.
+    maxRetries: 4,
     schema: VisualAnalysisSchema,
     messages: [
       {
