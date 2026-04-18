@@ -301,6 +301,12 @@ export function ConversationalAnalyzer() {
             setReport(event.report);
             setReportId(event.reportId);
             setPhase('done');
+            if (typeof window !== 'undefined' && event.reportId) {
+              const target = `/report/${event.reportId}`;
+              if (window.location.pathname !== target) {
+                window.history.pushState(null, '', target);
+              }
+            }
             pushMessage({
               id: `done-${Date.now()}`,
               author: 'assistant',
@@ -335,6 +341,9 @@ export function ConversationalAnalyzer() {
     setReport(null);
     setReportId(null);
     setError('');
+    if (typeof window !== 'undefined' && window.location.pathname.startsWith('/report/')) {
+      window.history.pushState(null, '', '/v2');
+    }
   }, []);
 
   useEffect(() => {
@@ -346,14 +355,6 @@ export function ConversationalAnalyzer() {
   if (phase === 'done' && report) {
     return (
       <div className="mx-auto w-full max-w-5xl px-6 py-10">
-        <div className="mb-6 flex items-center justify-between">
-          <div className="text-xs uppercase tracking-wider text-muted-foreground">
-            Chat · Report
-          </div>
-          <Button variant="ghost" size="sm" onClick={reset}>
-            New analysis
-          </Button>
-        </div>
         <ReportView
           report={report}
           persistedReportId={reportId}
