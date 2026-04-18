@@ -56,18 +56,33 @@ npm run dev
 
 Open <http://localhost:3000>.
 
+## Two UI variants
+
+The app ships two working front-ends on top of the same API:
+
+| Route | Metaphor | Best for |
+|---|---|---|
+| `/` — **Classic** | Hero + form + progress tiles grid | Marketing-style landing; stakeholder demos |
+| `/v2` — **Chat** | Conversational; each analysis step streams in as a chat message | Feels native for AI-tool users; shows the pipeline as a transparent back-and-forth |
+
+A segmented control in the top-right of each page flips between them. Both share `/api/analyze`, `lib/schemas.ts`, and the final `ReportView` — only the presentation layer differs. This is intentional: it's a product experiment about which metaphor resonates, not two forks of the codebase.
+
 ## Project layout
 
 ```
 app/
-  page.tsx                 — marketing hero + Analyzer
-  api/analyze/route.ts     — SSE-over-POST endpoint
+  page.tsx                 — v1: marketing hero + Analyzer
+  v2/page.tsx              — v2: chat-first variant
+  api/analyze/route.ts     — SSE-over-POST endpoint (shared by both variants)
   report/[id]/page.tsx     — shareable persisted report view
 components/
-  analyzer.tsx             — top-level client component (state machine)
-  analyze-form.tsx         — URL input
-  progress-view.tsx        — per-site progress tiles + step indicator
-  report-view.tsx          — final report UI (insights, evidence, screenshots)
+  analyzer.tsx             — v1 state machine
+  analyze-form.tsx         — v1 URL input
+  progress-view.tsx        — v1 per-site progress tiles + step indicator
+  report-view.tsx          — final report UI (shared)
+  version-switcher.tsx     — segmented control linking / ↔ /v2
+  v2/
+    conversational-analyzer.tsx — v2 chat UI + SSE→message mapping
   ui/                      — shadcn primitives
 lib/
   schemas.ts               — Zod schemas (single source of truth)
@@ -86,6 +101,8 @@ PRD.md                     — full product vision
 ```
 
 ## Design decisions worth calling out
+
+**Two UI metaphors, one engine.** The `/` and `/v2` routes are shipped side-by-side as a deliberate product experiment. Same `/api/analyze`, same Zod schemas, same `ReportView` — only the presentation changes. The "classic" variant treats the tool like a form (paste URL → get report); the "chat" variant treats the analysis as a conversation with a crit analyst. Reviewers can flip between them via the version switcher in the top-right.
 
 **Multi-agent, not one megaprompt.** Each step is a narrow call with a Zod-validated structured output. Cleaner prompts, lower hallucination, parallelizable, individually retryable.
 

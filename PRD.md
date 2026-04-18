@@ -198,6 +198,17 @@ All AI and Firecrawl calls happen in Route Handlers / Server Actions. Nothing to
 - **Next:** user can replace any of the 3 auto-picked competitors before analysis.
 - **Later:** user can pin specific sections to analyze, or exclude categories.
 
+### UI variant experiment
+
+The deployed app ships **two working front-ends on top of the same API**, accessible via a "Classic | Chat" switcher in the header:
+
+| Route          | Metaphor                                              | Hypothesis                                                                            |
+| -------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `/` — Classic  | Hero + form + tile grid                               | Trusted marketing-tool convention; stakeholder-friendly                               |
+| `/v2` — Chat   | Conversational stream; each pipeline step is a message | AI-native users read this as transparent and "working"; lowers the "is it frozen?" feeling |
+
+Both routes consume the same `/api/analyze` SSE endpoint and render the identical `ReportView` on completion — only presentation differs. Shipping both in parallel is a product experiment, not a fork: the goal is to validate which metaphor resonates with SaaS designers and PMs before collapsing on one. Post-MVP this would be A/B tested with completion rate and click-through to the report as the primary signals.
+
 ---
 
 ## 5. What Makes It Excellent

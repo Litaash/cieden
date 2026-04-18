@@ -1,12 +1,16 @@
 import { Analyzer } from "@/components/analyzer";
+import { VersionSwitcher } from "@/components/version-switcher";
 
 export default function HomePage() {
   return (
     <main className="flex flex-1 flex-col">
       <section className="relative overflow-hidden">
         <div className="absolute inset-x-0 top-0 -z-10 h-[520px] bg-linear-to-b from-primary/6 via-primary/2 to-transparent" />
-        <div className="mx-auto w-full max-w-5xl px-6 pt-16 pb-10 sm:pt-24 sm:pb-14">
-          <div className="mx-auto max-w-3xl text-center">
+        <div className="mx-auto w-full max-w-5xl px-6 pt-10 pb-10 sm:pt-14 sm:pb-14">
+          <div className="flex items-center justify-end">
+            <VersionSwitcher current="classic" />
+          </div>
+          <div className="mx-auto mt-10 max-w-3xl text-center sm:mt-14">
             <div className="inline-flex items-center gap-2 rounded-full border bg-background/60 backdrop-blur px-3 py-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
               <span className="h-1.5 w-1.5 rounded-full bg-primary" />
               Landing Crit · MVP
