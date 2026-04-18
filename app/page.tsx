@@ -1,65 +1,71 @@
-import Image from "next/image";
+import { Analyzer } from '@/components/analyzer';
 
-export default function Home() {
+export default function HomePage() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <main className="flex flex-1 flex-col">
+      <section className="relative overflow-hidden">
+        <div className="absolute inset-x-0 top-0 -z-10 h-[520px] bg-gradient-to-b from-primary/[0.06] via-primary/[0.02] to-transparent" />
+        <div className="mx-auto w-full max-w-5xl px-6 pt-16 pb-10 sm:pt-24 sm:pb-14">
+          <div className="mx-auto max-w-3xl text-center">
+            <div className="inline-flex items-center gap-2 rounded-full border bg-background/60 backdrop-blur px-3 py-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+              Landing Crit · MVP
+            </div>
+            <h1 className="mt-6 text-4xl font-semibold tracking-tight sm:text-5xl md:text-6xl">
+              A senior designer&rsquo;s critique
+              <br className="hidden sm:block" /> of your SaaS landing page.
+            </h1>
+            <p className="mt-5 text-base leading-relaxed text-muted-foreground sm:text-lg">
+              Paste your URL. We find your direct competitors, capture
+              screenshots, and return an evidence-backed, prioritized design
+              crit in under 90 seconds.
+            </p>
+          </div>
+
+          <div className="mt-10">
+            <Analyzer />
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+      </section>
+
+      <section className="border-t bg-muted/20">
+        <div className="mx-auto grid w-full max-w-5xl gap-6 px-6 py-14 sm:grid-cols-3">
+          <Feature
+            title="Evidence, not vibes"
+            body="Every insight quotes specific copy or references a named screenshot element. No generic ‘improve your CTA’ advice."
+          />
+          <Feature
+            title="Real competitors"
+            body="Competitors are picked via live Google Search grounding with cited sources — not pulled from a stale database."
+          />
+          <Feature
+            title="Designer-grade output"
+            body="Hierarchy, contrast, whitespace, cognitive load — the tool thinks in design terms, not SEO checkboxes."
+          />
         </div>
-      </main>
+      </section>
+
+      <footer className="mt-auto border-t">
+        <div className="mx-auto w-full max-w-5xl px-6 py-6 text-xs text-muted-foreground flex flex-wrap items-center justify-between gap-3">
+          <span>
+            Built for the Cieden take-home · Screenshots expire in 24 hours
+          </span>
+          <span className="font-mono">
+            next.js 16 · gemini 2.5 · firecrawl
+          </span>
+        </div>
+      </footer>
+    </main>
+  );
+}
+
+function Feature({ title, body }: { title: string; body: string }) {
+  return (
+    <div>
+      <div className="text-sm font-medium">{title}</div>
+      <p className="mt-1.5 text-sm text-muted-foreground leading-relaxed">
+        {body}
+      </p>
     </div>
   );
 }
