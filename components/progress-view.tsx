@@ -1,7 +1,6 @@
 "use client";
 
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import type {
   Competitor,
   FailureReasonCategory,
@@ -63,32 +62,18 @@ export function ProgressView({
     Math.round(((currentStepIndex + 1) / STEP_ORDER.length) * 100),
   );
 
+  const currentLabel =
+    STEP_LABELS[step as (typeof STEP_ORDER)[number]] ?? "Working…";
+
   return (
     <div className="mx-auto w-full max-w-4xl">
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-50" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
-            </span>
-            {statusMessage || "Working…"}
-          </div>
-          <div className="flex flex-wrap gap-1.5 mt-1">
-            {STEP_ORDER.map((s, i) => (
-              <Badge
-                key={s}
-                variant={i === currentStepIndex ? "default" : "secondary"}
-                className={cn(
-                  "text-[10px] font-normal uppercase tracking-wider px-2 py-0.5",
-                  i < currentStepIndex && "opacity-50",
-                  i > currentStepIndex && "opacity-30",
-                )}
-              >
-                {STEP_LABELS[s]}
-              </Badge>
-            ))}
-          </div>
+      <div className="flex items-baseline justify-between gap-4">
+        <div className="flex items-baseline gap-1.5 text-sm">
+          <span className="tabular-nums text-muted-foreground/60 text-xs">
+            {currentStepIndex + 1}&thinsp;/&thinsp;{STEP_ORDER.length}
+          </span>
+          <span className="text-muted-foreground/40 text-xs">·</span>
+          <span className="text-foreground/80">{currentLabel}</span>
         </div>
         <button
           onClick={onCancel}
@@ -98,7 +83,20 @@ export function ProgressView({
         </button>
       </div>
 
-      <Progress value={progressPct} className="mt-4 h-1.5" />
+      <div className="mt-2.5 h-0.5 w-full overflow-hidden rounded-full bg-muted">
+        <div
+          className="h-full rounded-full bg-primary transition-all duration-500"
+          style={{ width: `${progressPct}%` }}
+        />
+      </div>
+
+      <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+        <span className="relative flex h-2.5 w-2.5 shrink-0">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-30" />
+          <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-primary" />
+        </span>
+        {statusMessage || "Working…"}
+      </div>
 
       {competitors.length > 0 && (
         <div className="mt-10 rounded-lg border bg-muted/30 p-5">
@@ -132,6 +130,33 @@ export function ProgressView({
         {sites.map((site) => (
           <SiteTile key={site.url} site={site} />
         ))}
+      </div>
+    </div>
+  );
+}
+
+function SkeletonPage() {
+  return (
+    <div className="absolute inset-0 flex flex-col gap-2 p-3 animate-pulse">
+      <div className="flex items-center gap-1.5">
+        <div className="h-1.5 w-1.5 rounded-full bg-foreground/10" />
+        <div className="h-1.5 w-12 rounded-full bg-foreground/10" />
+        <div className="ml-auto h-1.5 w-8 rounded-full bg-foreground/10" />
+      </div>
+      <div className="h-px w-full bg-foreground/5" />
+      <div className="mt-1 h-3 w-2/3 rounded bg-foreground/10" />
+      <div className="h-2 w-full rounded bg-foreground/8" />
+      <div className="h-2 w-5/6 rounded bg-foreground/8" />
+      <div className="h-2 w-4/6 rounded bg-foreground/6" />
+      <div className="mt-2 flex gap-1.5">
+        <div className="h-4 w-14 rounded bg-foreground/12" />
+        <div className="h-4 w-10 rounded bg-foreground/6" />
+      </div>
+      <div className="mt-3 h-16 w-full rounded bg-foreground/5" />
+      <div className="mt-2 grid grid-cols-3 gap-1.5">
+        <div className="h-8 rounded bg-foreground/6" />
+        <div className="h-8 rounded bg-foreground/5" />
+        <div className="h-8 rounded bg-foreground/4" />
       </div>
     </div>
   );
@@ -186,12 +211,7 @@ function SiteTile({ site }: { site: SiteState }) {
             )}
           />
         ) : (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="flex flex-col items-center gap-2 text-xs text-muted-foreground">
-              <div className="h-6 w-6 rounded-full border-2 border-current border-t-transparent animate-spin opacity-40" />
-              <span className="opacity-60">capturing…</span>
-            </div>
-          </div>
+          <SkeletonPage />
         )}
       </div>
       <div className="p-3">

@@ -11,6 +11,7 @@ import type {
 } from '@/lib/schemas';
 import { ReportView } from '@/components/report-view';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 
 type Phase = 'idle' | 'running' | 'done' | 'error';
@@ -59,6 +60,7 @@ const EXAMPLES = ['apollo.io', 'linear.app', 'resend.com', 'vercel.com'];
 export function ConversationalAnalyzer() {
   const [messages, setMessages] = useState<ChatMessage[]>([GREETING]);
   const [input, setInput] = useState('');
+  const [inputTouched, setInputTouched] = useState(false);
   const [phase, setPhase] = useState<Phase>('idle');
   const [report, setReport] = useState<Report | null>(null);
   const [reportId, setReportId] = useState<string | null>(null);
@@ -328,6 +330,7 @@ export function ConversationalAnalyzer() {
     abortRef.current?.abort();
     setMessages([GREETING]);
     setInput('');
+    setInputTouched(false);
     setPhase('idle');
     setReport(null);
     setReportId(null);
@@ -383,6 +386,27 @@ export function ConversationalAnalyzer() {
             onClick={() => {
               abortRef.current?.abort();
               setPhase('idle');
+              setMessages((msgs) =>
+                msgs.map((msg) => {
+                  if (msg.body.kind === 'site' && msg.body.status === 'capturing') {
+                    return {
+                      ...msg,
+                      body: {
+                        ...msg.body,
+                        status: 'failed' as const,
+                        failureLabel: 'Cancelled',
+                      },
+                    };
+                  }
+                  if (msg.body.kind === 'status' && !msg.body.done) {
+                    return {
+                      ...msg,
+                      body: { ...msg.body, done: true },
+                    };
+                  }
+                  return msg;
+                }),
+              );
               pushMessage({
                 id: `cancel-${Date.now()}`,
                 author: 'assistant',
@@ -417,21 +441,25 @@ export function ConversationalAnalyzer() {
       </div>
 
       <form
+        noValidate
         onSubmit={(e) => {
           e.preventDefault();
-          if (phase === 'running' || !isValid) return;
+          if (phase === 'running') return;
+          setInputTouched(true);
+          if (!isValid) return;
           const url = input;
           setInput('');
+          setInputTouched(false);
           void runAnalysis(url);
         }}
         className="border-t bg-background/80 px-5 py-4"
       >
-        <div className="flex items-end gap-2">
+        <div className="flex items-stretch gap-2">
           <div className="flex-1">
             <label htmlFor="chat-url" className="sr-only">
               Landing page URL
             </label>
-            <input
+            <Input
               id="chat-url"
               type="url"
               inputMode="url"
@@ -444,17 +472,29 @@ export function ConversationalAnalyzer() {
               }
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              className="w-full rounded-md border bg-background px-3 py-2.5 text-sm outline-none ring-offset-background transition-colors focus:ring-2 focus:ring-ring disabled:opacity-60"
+              aria-invalid={inputTouched && !isValid}
+              className={cn(
+                'h-11 text-sm',
+                inputTouched &&
+                  !isValid &&
+                  'border-destructive focus-visible:ring-destructive',
+              )}
             />
           </div>
           <Button
             type="submit"
-            disabled={phase === 'running' || !isValid}
-            className="shrink-0"
+            size="lg"
+            disabled={phase === 'running'}
+            className="h-11 shrink-0 px-5"
           >
             Send
           </Button>
         </div>
+        {inputTouched && !isValid && (
+          <p className="mt-1.5 text-[11px] text-destructive">
+            Enter a valid URL like https://apollo.io
+          </p>
+        )}
         {phase === 'idle' && (
           <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
             <span>Try:</span>

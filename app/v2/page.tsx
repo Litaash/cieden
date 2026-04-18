@@ -14,7 +14,7 @@ export default function V2Page() {
     <main className="flex flex-1 flex-col">
       <section className="relative overflow-hidden">
         <div className="absolute inset-x-0 top-0 -z-10 h-[420px] bg-linear-to-b from-primary/6 via-primary/2 to-transparent" />
-        <div className="mx-auto w-full max-w-5xl px-6 pt-10 pb-6">
+        <div className="mx-auto w-full max-w-5xl px-6 pt-10 pb-6 sm:pt-14">
           <div className="flex items-center justify-between gap-3">
             <Link
               href="/"
@@ -30,7 +30,7 @@ export default function V2Page() {
               <span className="h-1.5 w-1.5 rounded-full bg-primary" />
               Chat mode · experimental
             </div>
-            <h1 className="mt-5 text-3xl font-semibold tracking-tight sm:text-4xl">
+            <h1 className="mt-5 text-3xl font-semibold tracking-tight sm:text-4xl md:text-5xl">
               Talk to a landing-page crit analyst.
             </h1>
             <p className="mt-3 text-sm leading-relaxed text-muted-foreground sm:text-base">
@@ -46,11 +46,8 @@ export default function V2Page() {
       </section>
 
       <footer className="mt-auto border-t">
-        <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-3 px-6 py-6 text-xs text-muted-foreground">
-          <span>
-            Alternate UI · built for the Cieden take-home · Screenshots expire
-            in 24 hours
-          </span>
+        <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-center gap-3 px-6 py-6 text-xs text-muted-foreground">
+          <span>Alternate UI · built for the Cieden take-home · Screenshots expire in 24 hours</span>
           <span className="font-mono">chat · gemini 2.5 · firecrawl</span>
         </div>
       </footer>

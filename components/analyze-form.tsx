@@ -16,28 +16,39 @@ const EXAMPLES = [
   'https://vercel.com',
 ];
 
+function normalize(input: string): string {
+  const trimmed = input.trim();
+  if (!trimmed) return trimmed;
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+}
+
 export function AnalyzeForm({ onSubmit }: Props) {
   const [url, setUrl] = useState('');
   const [touched, setTouched] = useState(false);
 
+  const normalized = normalize(url);
+
   const isValid = (() => {
     try {
-      const u = new URL(url);
+      const u = new URL(normalized);
       return u.protocol === 'http:' || u.protocol === 'https:';
     } catch {
       return false;
     }
   })();
 
-  const showError = touched && !!url && !isValid;
+  const showError = touched && (!url || !isValid);
 
   return (
     <div className="mx-auto w-full max-w-2xl">
       <form
+        noValidate
         onSubmit={(e) => {
           e.preventDefault();
           setTouched(true);
-          if (isValid) onSubmit(url);
+          if (!isValid) return;
+          onSubmit(normalized);
         }}
         className="flex flex-col gap-3 sm:flex-row"
       >
@@ -46,11 +57,10 @@ export function AnalyzeForm({ onSubmit }: Props) {
             type="url"
             inputMode="url"
             autoFocus
-            required
             placeholder="https://your-saas.com"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
-            onBlur={() => setTouched(true)}
+            aria-invalid={showError}
             className={cn(
               'h-12 text-base',
               showError && 'border-destructive focus-visible:ring-destructive',

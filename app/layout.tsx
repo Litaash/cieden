@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: 'Landing Crit — Competitive SaaS Landing Page Analyzer',
   description:
-    "A senior-designer's critique of your SaaS landing page, benchmarked against direct competitors. Evidence-backed, prioritized, in under 90 seconds.",
+    'Paste your URL and get a prioritized, evidence-backed critique of your SaaS landing page — benchmarked against 3 direct competitors in under 90 seconds.',
   robots: { index: false, follow: false },
 };
 
@@ -28,7 +28,7 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-background text-foreground">
+      <body className="min-h-full flex flex-col bg-background text-foreground [scrollbar-gutter:stable]">
         {children}
         <Toaster position="top-right" richColors />
       </body>

@@ -23,6 +23,7 @@ interface State {
   sites: SiteState[];
   report: Report | null;
   reportId: string | null;
+  durationMs: number | null;
   error: string;
 }
 
@@ -35,6 +36,7 @@ const INITIAL_STATE: State = {
   sites: [],
   report: null,
   reportId: null,
+  durationMs: null,
   error: '',
 };
 
@@ -44,6 +46,7 @@ export function Analyzer() {
 
   const handleSubmit = useCallback(async (rawUrl: string) => {
     const url = rawUrl.trim();
+    const startedAt = Date.now();
     setState({
       ...INITIAL_STATE,
       phase: 'running',
@@ -92,7 +95,7 @@ export function Analyzer() {
             if (!json) continue;
             try {
               const event = JSON.parse(json) as AnalyzeEvent;
-              applyEvent(event, setState);
+              applyEvent(event, setState, startedAt);
             } catch (err) {
               console.warn('Failed to parse SSE frame', err, json);
             }
@@ -118,6 +121,7 @@ export function Analyzer() {
       <ReportView
         report={state.report}
         persistedReportId={state.reportId}
+        durationMs={state.durationMs}
         onReset={reset}
       />
     );
@@ -156,6 +160,7 @@ export function Analyzer() {
 function applyEvent(
   event: AnalyzeEvent,
   setState: (fn: (prev: State) => State) => void,
+  startedAt: number,
 ) {
   switch (event.type) {
     case 'status':
@@ -240,6 +245,7 @@ function applyEvent(
         phase: 'done',
         report: event.report,
         reportId: event.reportId,
+        durationMs: Date.now() - startedAt,
       }));
       return;
 

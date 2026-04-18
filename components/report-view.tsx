@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 interface Props {
   report: Report;
   persistedReportId: string | null;
+  durationMs?: number | null;
   onReset?: () => void;
 }
 
@@ -34,7 +35,7 @@ const PRIORITY_STYLE: Record<Insight["priority"], string> = {
   low: "bg-blue-500/10 text-blue-600 border-blue-500/20 dark:text-blue-400",
 };
 
-export function ReportView({ report, persistedReportId, onReset }: Props) {
+export function ReportView({ report, persistedReportId, durationMs, onReset }: Props) {
   const shareUrl = persistedReportId
     ? `${typeof window !== "undefined" ? window.location.origin : ""}/report/${persistedReportId}`
     : null;
@@ -70,6 +71,11 @@ export function ReportView({ report, persistedReportId, onReset }: Props) {
                 </a>
               </span>
             ))}
+            {durationMs != null && (
+              <span className="ml-2 text-muted-foreground/50">
+                · {Math.round(durationMs / 1000)} s
+              </span>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -130,12 +136,12 @@ function TopRecommendations({ items }: { items: string[] }) {
         {items.map((rec, i) => (
           <li
             key={i}
-            className="relative rounded-xl border bg-card p-5 shadow-sm"
+            className="rounded-xl border bg-card p-5 shadow-sm"
           >
-            <div className="text-5xl font-semibold tabular-nums text-muted-foreground/20 absolute top-2 right-4 leading-none">
+            <div className="mb-3 text-4xl font-semibold tabular-nums leading-none text-muted-foreground/20">
               {i + 1}
             </div>
-            <p className="relative text-sm leading-relaxed">{rec}</p>
+            <p className="text-sm leading-relaxed">{rec}</p>
           </li>
         ))}
       </ol>
