@@ -15,26 +15,28 @@ export function isBlobConfigured(): boolean {
 }
 
 /**
- * Upload a base64 screenshot (data URL or raw base64) to Blob and return the
- * public URL. A 24h implicit TTL is expected; Vercel Cron purges reports
- * older than 24h in production. Filename includes the report id to keep
- * cleanup straightforward.
+ * Upload screenshot bytes to Blob and return the public URL. A 24h implicit
+ * TTL is expected; Vercel Cron purges reports older than 24h in production.
+ * Filename includes the report id to keep cleanup straightforward.
  */
-export async function uploadScreenshot(
-  reportId: string,
-  siteSlug: string,
-  screenshot: string,
-): Promise<string> {
-  const base64 = screenshot.startsWith('data:')
-    ? (screenshot.split(',')[1] ?? '')
-    : screenshot;
-  const buf = Buffer.from(base64, 'base64');
-  const { url } = await put(`reports/${reportId}/${siteSlug}.jpg`, buf, {
-    access: 'public',
-    contentType: 'image/jpeg',
-    addRandomSuffix: false,
-    allowOverwrite: true,
-  });
+export async function uploadScreenshot(args: {
+  reportId: string;
+  siteSlug: string;
+  bytes: Uint8Array;
+  mimeType: string;
+}): Promise<string> {
+  const { reportId, siteSlug, bytes, mimeType } = args;
+  const extension = mimeTypeToExtension(mimeType);
+  const { url } = await put(
+    `reports/${reportId}/${siteSlug}.${extension}`,
+    Buffer.from(bytes),
+    {
+      access: 'public',
+      contentType: mimeType,
+      addRandomSuffix: false,
+      allowOverwrite: true,
+    },
+  );
   return url;
 }
 
@@ -69,5 +71,17 @@ export async function fetchReport(id: string): Promise<Report | null> {
     return (await res.json()) as Report;
   } catch {
     return null;
+  }
+}
+
+function mimeTypeToExtension(mime: string): string {
+  switch (mime) {
+    case 'image/jpeg':
+      return 'jpg';
+    case 'image/webp':
+      return 'webp';
+    case 'image/png':
+    default:
+      return 'png';
   }
 }

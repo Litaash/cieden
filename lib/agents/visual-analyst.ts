@@ -5,7 +5,8 @@ import { VisualAnalysisSchema, type VisualAnalysis } from '@/lib/schemas';
 /**
  * Visual Analyst agent.
  *
- * Takes a full-page screenshot and produces a structured visual critique.
+ * Takes a full-page screenshot (raw bytes) and produces a structured visual
+ * critique.
  *
  * Prompt design choices:
  *  - Uses senior-designer framing ("You are a senior product designer...") to
@@ -17,16 +18,12 @@ import { VisualAnalysisSchema, type VisualAnalysis } from '@/lib/schemas';
  *  - Keeps temperature low; visual analysis is not a creative task.
  */
 export async function analyzeVisual(args: {
-  screenshot: string;
+  screenshot: Uint8Array;
+  screenshotMimeType: string;
   siteName: string;
   siteUrl: string;
 }): Promise<VisualAnalysis> {
-  const { screenshot, siteName, siteUrl } = args;
-
-  // Firecrawl returns either a data: URL or a raw base64 string; normalize.
-  const imageInput = screenshot.startsWith('data:')
-    ? screenshot
-    : `data:image/jpeg;base64,${screenshot}`;
+  const { screenshot, screenshotMimeType, siteName, siteUrl } = args;
 
   const { object } = await generateObject({
     model: geminiPro,
@@ -54,7 +51,11 @@ Focus on:
 
 Be specific. "The CTA 'Start Free' is orange on white, right-aligned in the hero, with a secondary 'Book Demo' ghost button beside it" is good. "The CTA is prominent" is not.`,
           },
-          { type: 'image', image: imageInput },
+          {
+            type: 'image',
+            image: screenshot,
+            mediaType: screenshotMimeType,
+          },
         ],
       },
     ],

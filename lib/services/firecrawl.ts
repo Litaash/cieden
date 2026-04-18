@@ -5,8 +5,16 @@ import { Firecrawl } from '@mendable/firecrawl-js';
  *
  * Responsibilities:
  *  - Centralize API-key reading (never access env outside service modules).
- *  - Normalize the shape we actually need: { markdown, screenshotDataUrl, title, description }.
+ *  - Normalize the shape we actually need: { markdown, screenshot bytes, title,
+ *    description }.
  *  - Hide v2-specific `formats` array noise from call-sites.
+ *
+ * Screenshot normalization:
+ *  Firecrawl v2 returns the screenshot as EITHER:
+ *    - a hosted Google Cloud Storage URL (most common path today), OR
+ *    - a base64 data URL / raw base64 string (older responses or fallback).
+ *  We always coerce to a Uint8Array so every downstream consumer
+ *  (Gemini Vision, Vercel Blob, inline-display encoder) can take one input shape.
  */
 
 export interface CapturedSite {
@@ -14,8 +22,10 @@ export interface CapturedSite {
   title: string;
   description: string;
   markdown: string;
-  /** Data URL (base64) or hosted URL — Firecrawl returns whichever is configured. */
-  screenshot: string;
+  /** Raw JPEG bytes — consumers can upload, send to LLMs, or base64 encode for inline display. */
+  screenshot: Uint8Array;
+  /** MIME type of the captured screenshot. Firecrawl v2 uses PNG today. */
+  screenshotMimeType: string;
 }
 
 let client: Firecrawl | null = null;
@@ -56,16 +66,56 @@ export async function captureLanding(url: string): Promise<CapturedSite> {
     proxy: 'auto',
   });
 
-  const screenshot = doc.screenshot;
-  if (!screenshot) {
+  const rawScreenshot = doc.screenshot;
+  if (!rawScreenshot) {
     throw new Error(`Firecrawl returned no screenshot for ${url}`);
   }
+
+  const { bytes, mime } = await toBytes(rawScreenshot);
 
   return {
     url,
     title: doc.metadata?.title || doc.metadata?.ogTitle || '',
     description: doc.metadata?.description || doc.metadata?.ogDescription || '',
     markdown: doc.markdown || '',
-    screenshot,
+    screenshot: bytes,
+    screenshotMimeType: mime,
   };
+}
+
+async function toBytes(
+  input: string,
+): Promise<{ bytes: Uint8Array; mime: string }> {
+  if (input.startsWith('data:')) {
+    const match = /^data:([^;]+);base64,([\s\S]*)$/.exec(input);
+    if (!match) throw new Error('Malformed data: URL from Firecrawl');
+    const mime = match[1] ?? 'image/png';
+    const b64 = match[2] ?? '';
+    return { bytes: new Uint8Array(Buffer.from(b64, 'base64')), mime };
+  }
+
+  if (input.startsWith('http://') || input.startsWith('https://')) {
+    const res = await fetch(input);
+    if (!res.ok) {
+      throw new Error(
+        `Failed to download Firecrawl screenshot (${res.status}): ${input}`,
+      );
+    }
+    const mime = res.headers.get('content-type') || guessMimeFromUrl(input);
+    const buf = new Uint8Array(await res.arrayBuffer());
+    return { bytes: buf, mime };
+  }
+
+  // Assume raw base64 without data-URL prefix.
+  return {
+    bytes: new Uint8Array(Buffer.from(input, 'base64')),
+    mime: 'image/png',
+  };
+}
+
+function guessMimeFromUrl(url: string): string {
+  const lower = url.toLowerCase().split('?')[0] ?? '';
+  if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
+  if (lower.endsWith('.webp')) return 'image/webp';
+  return 'image/png';
 }

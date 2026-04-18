@@ -22,7 +22,7 @@ Built as a take-home for **Cieden**. Full product thinking lives in [`PRD.md`](.
 | Framework | Next.js 16 (App Router, Turbopack) |
 | Language | TypeScript |
 | UI | Tailwind v4 + shadcn/ui |
-| AI | Vercel AI SDK v6 + `@ai-sdk/google` (Gemini 2.5 Flash / Pro) |
+| AI | Vercel AI SDK v6 + `@ai-sdk/google` (Gemini 2.5 Flash by default; Pro via env override when billing is enabled) |
 | Search grounding | Built-in `google_search` tool on Gemini |
 | Scraping | Firecrawl v2 SDK |
 | Storage (optional) | Vercel Blob |

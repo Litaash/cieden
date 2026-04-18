@@ -25,8 +25,8 @@ export type Emit = (event: AnalyzeEvent) => void;
  *  - Tolerant to competitor failures: the synthesizer still runs with
  *    whatever competitor data is available (down to zero in the worst case,
  *    which is still a useful "your landing page" critique).
- *  - Blob is optional: when the token is absent we keep screenshots as
- *    data URLs on the in-memory report and skip upload.
+ *  - Blob is optional: when the token is absent we inline screenshots as
+ *    data URLs on the report so the UI can render them without persistence.
  */
 export async function runAnalysis(userUrl: string, emit: Emit): Promise<Report> {
   const reportId = nanoid(12);
@@ -55,9 +55,9 @@ export async function runAnalysis(userUrl: string, emit: Emit): Promise<Report> 
 
   const captureResults = await captureAll(sitesToCapture.map((s) => s.url));
 
-  // Upload screenshots to Blob (if configured) so the report has durable URLs.
-  // In dev-without-blob, we store the raw data URL directly — works for the
-  // in-flight response but not for a shareable /report/[id] later.
+  // For each captured site we produce a displayable URL (Blob URL when
+  // configured; inline data URL otherwise) plus keep the raw bytes for the
+  // Visual Analyst.
   const captured: {
     url: string;
     name: string;
@@ -78,26 +78,32 @@ export async function runAnalysis(userUrl: string, emit: Emit): Promise<Report> 
       continue;
     }
 
-    let screenshotUrl = res.site.screenshot;
+    const slug = slugify(meta.name || meta.url);
+    let screenshotUrl: string;
     if (isBlobConfigured()) {
       try {
-        screenshotUrl = await uploadScreenshot(
+        screenshotUrl = await uploadScreenshot({
           reportId,
-          slugify(meta.name || meta.url),
-          res.site.screenshot,
-        );
+          siteSlug: slug,
+          bytes: res.site.screenshot,
+          mimeType: res.site.screenshotMimeType,
+        });
       } catch {
         emit({
           type: 'status',
           step: 'capture',
           message: `Blob upload failed for ${meta.name}, using inline data URL`,
         });
-        if (!screenshotUrl.startsWith('data:')) {
-          screenshotUrl = `data:image/jpeg;base64,${screenshotUrl}`;
-        }
+        screenshotUrl = bytesToDataUrl(
+          res.site.screenshot,
+          res.site.screenshotMimeType,
+        );
       }
-    } else if (!screenshotUrl.startsWith('data:')) {
-      screenshotUrl = `data:image/jpeg;base64,${screenshotUrl}`;
+    } else {
+      screenshotUrl = bytesToDataUrl(
+        res.site.screenshot,
+        res.site.screenshotMimeType,
+      );
     }
 
     captured.push({
@@ -134,6 +140,7 @@ export async function runAnalysis(userUrl: string, emit: Emit): Promise<Report> 
       const [visual, copy] = await Promise.all([
         analyzeVisual({
           screenshot: c.site.screenshot,
+          screenshotMimeType: c.site.screenshotMimeType,
           siteName: c.name,
           siteUrl: c.url,
         }),
@@ -203,4 +210,9 @@ function slugify(s: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '')
     .slice(0, 48);
+}
+
+function bytesToDataUrl(bytes: Uint8Array, mime: string): string {
+  const b64 = Buffer.from(bytes).toString('base64');
+  return `data:${mime};base64,${b64}`;
 }
